@@ -1,0 +1,14 @@
+{
+  "name": "mediaserver-sidekick",
+  "version": "0.1.0",
+  "description": "Export artwork from Plex, Emby, and Jellyfin for direct use or Kometa asset management.",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "NODE_ENV=development node src/server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

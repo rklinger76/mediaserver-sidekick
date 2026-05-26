@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Mediaserver Sidekick</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 48 48" role="img">
+              <rect x="6" y="8" width="36" height="32" rx="7"></rect>
+              <path d="M21 17l12 7-12 7z"></path>
+              <circle cx="14" cy="16" r="2"></circle>
+              <circle cx="14" cy="24" r="2"></circle>
+              <circle cx="14" cy="32" r="2"></circle>
+            </svg>
+          </div>
+          <div>
+            <strong>Mediaserver Sidekick</strong>
+            <span>Artwork Management</span>
+          </div>
+        </div>
+        <nav>
+          <button class="nav-item active" data-view="export">Export</button>
+          <button class="nav-item" data-view="restore">Restore</button>
+          <button class="nav-item" data-view="settings">Settings</button>
+        </nav>
+      </aside>
+
+      <main>
+        <section class="topbar">
+          <div>
+            <p class="eyebrow" id="view-eyebrow">Docker ready</p>
+            <h1 id="view-title">Artwork sauber exportieren</h1>
+          </div>
+          <div class="status-pill" id="health">Prüfe App</div>
+        </section>
+
+        <section class="view active" id="view-export">
+          <div class="work-grid">
+            <form class="panel" id="export-form">
+              <div class="panel-header">
+                <h2>Export Job</h2>
+                <span>Poster, Fanart, Staffelposter</span>
+              </div>
+
+              <label>
+                Medienserver
+                <select name="serverType">
+                  <option value="plex">Plex</option>
+                  <option value="emby">Emby</option>
+                  <option value="jellyfin">Jellyfin</option>
+                </select>
+              </label>
+
+              <label>
+                Bibliothek
+                <select name="libraryId" id="library-select">
+                  <option value="">Lade Bibliotheken</option>
+                </select>
+              </label>
+
+              <div class="library-meta">
+                <span>Erkannt als</span>
+                <strong id="library-type">-</strong>
+              </div>
+
+              <fieldset class="asset-picker">
+                <legend>Asset-Arten</legend>
+                <label class="check-row">
+                  <input type="checkbox" name="artworkKinds" value="poster" checked>
+                  <span>Poster</span>
+                </label>
+                <label class="check-row">
+                  <input type="checkbox" name="artworkKinds" value="background" checked>
+                  <span>Fanart</span>
+                </label>
+                <label class="check-row" id="season-poster-row">
+                  <input type="checkbox" name="artworkKinds" value="seasonPoster" checked>
+                  <span>Staffelposter</span>
+                </label>
+              </fieldset>
+
+              <label class="check-row" id="kometa-asset-name-row">
+                <input type="checkbox" name="useKometaAssetNames">
+                <span>Kometa Asset Namen verwenden</span>
+              </label>
+
+              <label>
+                Zielverzeichnis
+                <span class="path-field">
+                  <input name="exportPath" placeholder="/exports">
+                  <button type="button" class="secondary browse-button" data-path-target="exportPath">Auswählen</button>
+                </span>
+              </label>
+
+              <div class="progress-card" id="export-progress" hidden>
+                <div>
+                  <strong id="progress-label">Export läuft</strong>
+                  <span id="progress-detail">0 von 0 Dateien</span>
+                </div>
+                <progress id="progress-bar" max="100" value="0"></progress>
+              </div>
+
+              <div class="actions">
+                <button type="button" class="secondary" id="preview-button">Vorschau</button>
+                <button type="submit">Export starten</button>
+              </div>
+            </form>
+
+            <div class="panel results-panel">
+              <div class="panel-header">
+                <h2>Vorschau</h2>
+                <span id="result-count">Noch kein Job</span>
+              </div>
+              <div class="result-summary" id="result-summary" hidden></div>
+              <div class="file-list" id="file-list">
+                <div class="empty-state">Wähle einen Server und erstelle eine Vorschau.</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="view-restore">
+          <div class="work-grid">
+            <form class="panel" id="restore-form">
+              <div class="panel-header">
+                <h2>Asset Restore</h2>
+                <span>Backup kontrolliert zurückspielen</span>
+              </div>
+
+              <label>
+                Backup-Verzeichnis
+                <span class="path-field">
+                  <input name="sourcePath" placeholder="/exports-backup">
+                  <button type="button" class="secondary browse-button" data-path-target="sourcePath">Auswählen</button>
+                </span>
+              </label>
+
+              <label>
+                Zielverzeichnis
+                <span class="path-field">
+                  <input name="targetPath" placeholder="/exports">
+                  <button type="button" class="secondary browse-button" data-path-target="targetPath">Auswählen</button>
+                </span>
+              </label>
+
+              <label class="check-row">
+                <input type="checkbox" name="overwriteExisting">
+                <span>Vorhandene Dateien überschreiben</span>
+              </label>
+
+              <div class="progress-card" id="restore-progress" hidden>
+                <div>
+                  <strong id="restore-progress-label">Restore läuft</strong>
+                  <span id="restore-progress-detail">0 von 0 Dateien</span>
+                </div>
+                <progress id="restore-progress-bar" max="100" value="0"></progress>
+              </div>
+
+              <div class="actions">
+                <button type="button" class="secondary" id="restore-preview-button">Vorschau</button>
+                <button type="submit">Restore starten</button>
+              </div>
+            </form>
+
+            <div class="panel results-panel">
+              <div class="panel-header">
+                <h2>Restore Vorschau</h2>
+                <span id="restore-result-count">Noch kein Job</span>
+              </div>
+              <div class="result-summary" id="restore-result-summary" hidden></div>
+              <div class="file-list" id="restore-file-list">
+                <div class="empty-state">Wähle Backup- und Zielverzeichnis und erstelle eine Vorschau.</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="view-settings">
+          <form class="settings-grid" id="settings-form">
+            <div class="panel">
+              <div class="panel-header">
+                <h2>Plex</h2>
+                <span id="plex-secret">Nicht gespeichert</span>
+              </div>
+              <label>Server URL<input name="plex.url" placeholder="http://tower:32400"></label>
+              <label>Token<input name="plex.token" type="password" autocomplete="new-password"></label>
+            </div>
+
+            <div class="panel">
+              <div class="panel-header">
+                <h2>Emby</h2>
+                <span id="emby-secret">Nicht gespeichert</span>
+              </div>
+              <label>Server URL<input name="emby.url" placeholder="http://tower:8096"></label>
+              <label>API Key<input name="emby.apiKey" type="password" autocomplete="new-password"></label>
+            </div>
+
+            <div class="panel">
+              <div class="panel-header">
+                <h2>Jellyfin</h2>
+                <span id="jellyfin-secret">Nicht gespeichert</span>
+              </div>
+              <label>Server URL<input name="jellyfin.url" placeholder="http://tower:8096"></label>
+              <label>API Key<input name="jellyfin.apiKey" type="password" autocomplete="new-password"></label>
+            </div>
+
+            <div class="panel">
+              <div class="panel-header">
+                <h2>Container</h2>
+                <span>Unraid Pfade</span>
+              </div>
+              <label>
+                Default Export Path
+                <span class="path-field">
+                  <input name="export.defaultPath" placeholder="/exports">
+                  <button type="button" class="secondary browse-button" data-path-target="export.defaultPath">Auswählen</button>
+                </span>
+              </label>
+              <button type="submit">Settings speichern</button>
+            </div>
+          </form>
+        </section>
+      </main>
+    </div>
+    <div class="modal-backdrop" id="path-picker" hidden>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="path-picker-title">
+        <div class="panel-header">
+          <h2 id="path-picker-title">Verzeichnis auswählen</h2>
+          <button type="button" class="icon-button" id="path-picker-close" aria-label="Schließen">×</button>
+        </div>
+        <div class="path-current" id="path-picker-current">/</div>
+        <div class="path-actions">
+          <button type="button" class="secondary" id="path-picker-up">Nach oben</button>
+          <button type="button" id="path-picker-use">Diesen Pfad verwenden</button>
+        </div>
+        <div class="directory-list" id="path-picker-list"></div>
+      </div>
+    </div>
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
