@@ -316,18 +316,20 @@ async function saveBackupEditor() {
   const artworkKinds = [...document.querySelectorAll('#backup-editor-form [name="artworkKinds"]:checked')].map(i => i.value);
   const config = {
     name: $('#backup-editor-name').value || 'Unbenannt',
-    serverType: $('#backup-editor-serverType').value,
-    libraryId: $('#backup-editor-libraryId').value,
-    libraryType: selectedLibrary?.dataset.type || 'all',
-    artworkKinds,
-    useKometaAssetNames: $('#backup-editor-kometa').checked,
     enabled: $('#backup-editor-enabled').checked,
     schedule: $('#backup-editor-schedule').value,
     time: $('#backup-editor-time').value,
     weekday: Number($('#backup-editor-weekday').value),
     intervalHours: Number($('#backup-editor-interval').value),
     retention: Number($('#backup-editor-retention').value),
-    backupPath: $('#backup-editor-path').value
+    backupPath: $('#backup-editor-path').value,
+    exportRequest: {
+      serverType: $('#backup-editor-serverType').value,
+      libraryId: $('#backup-editor-libraryId').value,
+      libraryType: selectedLibrary?.dataset.type || 'all',
+      artworkKinds,
+      useKometaAssetNames: $('#backup-editor-kometa').checked
+    }
   };
 
   try {

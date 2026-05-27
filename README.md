@@ -180,6 +180,9 @@ Add these entries with **Add another Path, Port, Variable, Label or Device** ->
 | --- | --- | --- | --- |
 | `SIDEKICK_SECRET` | `use-a-long-random-stable-secret` | Yes | Encryption key for saved Plex/Emby/Jellyfin credentials. |
 | `DEFAULT_EXPORT_DIR` | `/exports` | No | Default export path shown in the WebUI. |
+| `DEFAULT_BACKUP_DIR` | `/backups` | No | Default folder for automated backup jobs. |
+| `PUID` | `1000` | No | Runtime user ID. The container fixes mounted folder ownership on startup. |
+| `PGID` | `1000` | No | Runtime group ID. Use together with `PUID` if needed. |
 
 #### `SIDEKICK_SECRET`
 
@@ -209,6 +212,23 @@ This is the container path, not the Unraid host path. Do not put
 `/mnt/user/media/assets` here unless you also mounted that exact path into the
 container.
 
+#### `PUID` and `PGID`
+
+For Unraid installs, you normally do not need to run manual `chown` commands.
+The container starts with a small entrypoint that creates `/app/data`, `/exports`,
+and `/backups` if needed, fixes ownership for the configured `PUID`/`PGID`, and
+then starts the Node app as that non-root user.
+
+Defaults are:
+
+```text
+PUID=1000
+PGID=1000
+```
+
+Only change them if your Unraid setup intentionally uses a different owner for
+appdata/media folders.
+
 ### 7. Recommended minimal Unraid template
 
 Use this as a checklist:
@@ -221,6 +241,9 @@ Use this as a checklist:
 | Path | Backups | `/backups` | `/mnt/user/backups/mediaserver-sidekick` |
 | Variable | `SIDEKICK_SECRET` | - | A long stable random secret |
 | Variable | `DEFAULT_EXPORT_DIR` | - | `/exports` |
+| Variable | `DEFAULT_BACKUP_DIR` | - | `/backups` |
+| Variable | `PUID` | - | `1000` |
+| Variable | `PGID` | - | `1000` |
 | Icon URL | Unraid icon | - | `https://raw.githubusercontent.com/rklinger76/mediaserver-sidekick/main/public/icon.jpg` |
 
 After applying the template, open the WebUI from the Docker tab or browse to:
@@ -257,4 +280,6 @@ Optional environment variables:
 
 - `PORT`: internal app port. Keep this at `3000` unless you also change the container port mapping.
 - `DEFAULT_EXPORT_DIR`: default target path shown in the app, defaults to `/exports`.
+- `DEFAULT_BACKUP_DIR`: default backup path used by scheduled jobs, defaults to `/backups`.
 - `DATA_DIR`: settings directory inside the container, defaults to `/app/data`.
+- `PUID` / `PGID`: runtime user/group IDs. Defaults to `1000:1000`; the entrypoint fixes mounted folder ownership before dropping privileges.
