@@ -718,3 +718,123 @@ button.secondary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* ── Backup Multi-Job Layout ── */
+.backup-layout {
+  display: grid;
+  grid-template-columns: 340px minmax(400px, 1fr) minmax(300px, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.backup-list-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.backup-list-panel > .panel-header {
+  margin-bottom: 0;
+}
+
+.backup-job-list {
+  display: grid;
+  gap: 10px;
+  max-height: 480px;
+  overflow-y: auto;
+}
+
+.backup-job-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  background: #111318;
+  display: grid;
+  gap: 10px;
+}
+
+.backup-job-card.disabled {
+  opacity: .6;
+}
+
+.backup-job-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.backup-job-header strong {
+  font-size: 15px;
+}
+
+.backup-job-badge {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.backup-job-badge.active {
+  border: 1px solid rgba(72, 198, 194, .42);
+  color: var(--cool);
+}
+
+.backup-job-badge.paused {
+  border: 1px solid rgba(240, 100, 73, .42);
+  color: var(--warn);
+}
+
+.backup-job-meta {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.backup-job-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.backup-job-btn {
+  min-height: 32px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-strong);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.backup-job-btn:hover {
+  border-color: var(--accent);
+}
+
+.backup-job-btn.delete:hover {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+.backup-editor-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.backup-editor-panel[hidden] {
+  display: none;
+}
+
+.backup-progress-panel {
+  min-height: 200px;
+}
+
+@media (max-width: 1200px) {
+  .backup-layout {
+    grid-template-columns: minmax(300px, 1fr);
+  }
+}

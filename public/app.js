@@ -21,8 +21,8 @@ const viewMeta = {
     title: 'Assets aus Backups wiederherstellen'
   },
   backup: {
-    eyebrow: 'Automatisches Backup',
-    title: 'Artwork regelmäßig sichern'
+    eyebrow: 'Backup-Jobs verwalten',
+    title: 'Mehrere Backup-Jobs konfigurieren'
   },
   settings: {
     eyebrow: 'Docker & Unraid',
@@ -78,9 +78,8 @@ function fillSettings(settings) {
   state.settings = settings;
   $('[name="exportPath"]').placeholder = settings.export.defaultPath;
   $('[name="targetPath"]').placeholder = settings.export.defaultPath;
-  $('[name="backupPath"]').placeholder = settings.backupDefaultPath || '/backups';
   $('[name="export.defaultPath"]').value = settings.export.defaultPath;
-  fillBackupForm((settings.backups || [])[0]);
+  refreshBackupList();
 
   for (const server of ['plex', 'emby', 'jellyfin']) {
     $(`[name="${server}.url"]`).value = settings[server].url || '';
@@ -146,47 +145,274 @@ function restorePayload() {
   };
 }
 
-function backupPayload() {
-  const form = $('#backup-form');
-  const data = formToObject(form);
-  const selectedLibrary = $('#backup-library-select').selectedOptions[0];
-  const artworkKinds = [...form.querySelectorAll('[name="artworkKinds"]:checked')].map(input => input.value);
-  return {
-    id: state.settings?.backups?.[0]?.id,
-    enabled: Boolean(data.enabled),
-    name: data.name || 'Artwork Backup',
-    schedule: data.schedule || 'daily',
-    time: data.time || '03:00',
-    weekday: Number(data.weekday || 0),
-    intervalHours: Number(data.intervalHours || 24),
-    retention: Number(data.retention || 5),
-    backupPath: data.backupPath || '/backups',
-    exportRequest: {
-      serverType: data.serverType,
-      libraryId: data.libraryId,
-      libraryType: selectedLibrary?.dataset.type || 'all',
-      artworkKinds,
-      useKometaAssetNames: Boolean(data.useKometaAssetNames)
-    }
-  };
+/* ── Backup Multi-Job Management ── */
+
+function scheduleLabel(config) {
+  if (config.schedule === 'hourly') return `Alle ${config.intervalHours}h`;
+  if (config.schedule === 'daily') return `${config.time}`;
+  if (config.schedule === 'weekly') {
+    const days = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+    return `${days[config.weekday] || 'So'} ${config.time}`;
+  }
+  return 'Nur manuell';
 }
 
-function fillBackupForm(config) {
-  if (!config) return;
-  const form = $('#backup-form');
-  form.elements.name.value = config.name || '';
-  form.elements.serverType.value = config.exportRequest?.serverType || 'plex';
-  form.elements.schedule.value = config.schedule || 'daily';
-  form.elements.time.value = config.time || '03:00';
-  form.elements.weekday.value = String(config.weekday ?? 0);
-  form.elements.intervalHours.value = config.intervalHours || 24;
-  form.elements.retention.value = config.retention || 5;
-  form.elements.backupPath.value = config.backupPath || '';
-  form.elements.enabled.checked = config.enabled === true;
-  form.elements.useKometaAssetNames.checked = config.exportRequest?.useKometaAssetNames === true;
-  for (const checkbox of form.querySelectorAll('[name="artworkKinds"]')) {
-    checkbox.checked = (config.exportRequest?.artworkKinds || []).includes(checkbox.value);
+function serverIcon(serverType) {
+  if (serverType === 'plex') return 'Plex';
+  if (serverType === 'emby') return 'Emby';
+  return 'Jellyfin';
+}
+
+function libraryLabel(config) {
+  const ex = config.exportRequest || {};
+  return ex.libraryId ? `${serverIcon(ex.serverType)} · ${ex.libraryId.substring(0, 8)}…` : 'Nicht konfiguriert';
+}
+
+function lastRunLabel(job) {
+  if (!job.lastRunAt) return 'Noch nie';
+  const d = new Date(job.lastRunAt);
+  return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+async function refreshBackupList() {
+  const backups = state.settings?.backups || [];
+  $('#backup-job-count').textContent = `${backups.length} Job${backups.length !== 1 ? 's' : ''}`;
+  const list = $('#backup-job-list');
+  list.innerHTML = '';
+
+  if (!backups.length) {
+    list.innerHTML = '<div class="empty-state">Noch keine Backup-Jobs. Erstelle einen neuen!</div>';
+    return;
   }
+
+  for (const job of backups) {
+    const card = document.createElement('div');
+    card.className = 'backup-job-card' + (job.enabled ? '' : ' disabled');
+    card.innerHTML = `
+      <div class="backup-job-header">
+        <strong>${escHtml(job.name || 'Unbenannt')}</strong>
+        <span class="backup-job-badge ${job.enabled ? 'active' : 'paused'}">${job.enabled ? 'Aktiv' : 'Pausiert'}</span>
+      </div>
+      <div class="backup-job-meta">
+        <span>${scheduleLabel(job)}</span>
+        <span>${job.retention || 5} Versionen</span>
+        <span>Zuletzt: ${lastRunLabel(job)}</span>
+      </div>
+      <div class="backup-job-actions">
+        <button type="button" class="backup-job-btn toggle" data-id="${job.id}" title="${job.enabled ? 'Pausieren' : 'Aktivieren'}">${job.enabled ? '⏸' : '▶'}</button>
+        <button type="button" class="backup-job-btn run" data-id="${job.id}" title="Jetzt ausführen">▶</button>
+        <button type="button" class="backup-job-btn edit" data-id="${job.id}" title="Bearbeiten">✎</button>
+        <button type="button" class="backup-job-btn delete" data-id="${job.id}" title="Löschen">✕</button>
+      </div>`;
+    list.append(card);
+  }
+
+  // Bind inline actions
+  for (const btn of list.querySelectorAll('.backup-job-btn.toggle')) {
+    btn.addEventListener('click', () => toggleBackupJob(btn.dataset.id));
+  }
+  for (const btn of list.querySelectorAll('.backup-job-btn.run')) {
+    btn.addEventListener('click', () => runBackupJob(btn.dataset.id));
+  }
+  for (const btn of list.querySelectorAll('.backup-job-btn.edit')) {
+    btn.addEventListener('click', () => openBackupEditor(btn.dataset.id));
+  }
+  for (const btn of list.querySelectorAll('.backup-job-btn.delete')) {
+    btn.addEventListener('click', () => deleteBackupJob(btn.dataset.id));
+  }
+}
+
+function escHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function updateBackupEditorVisibility() {
+  const schedule = $('#backup-editor-schedule').value;
+  $('#backup-editor-time-row').hidden = schedule === 'hourly' || schedule === 'manual';
+  $('#backup-editor-weekday-row').hidden = schedule !== 'weekly';
+  $('#backup-editor-interval-row').hidden = schedule !== 'hourly';
+}
+
+function updateBackupEditorLibraryType() {
+  const select = $('#backup-editor-libraryId');
+  const selected = select.selectedOptions[0];
+  const type = selected?.dataset.type;
+  $('#backup-editor-library-type').textContent = type === 'movie' ? 'Filme' : type === 'show' ? 'Serie' : '-';
+  $('#backup-editor-season-row').hidden = type !== 'show';
+  $('#backup-editor-kometa-row').hidden = !['movie', 'show'].includes(type);
+}
+
+async function loadBackupEditorLibraries(serverType) {
+  const select = $('#backup-editor-libraryId');
+  select.innerHTML = '<option value="">Lade Bibliotheken</option>';
+  try {
+    const libraries = await api(`/api/libraries?serverType=${encodeURIComponent(serverType)}`);
+    select.innerHTML = '';
+    if (!libraries.length) {
+      select.innerHTML = '<option value="">Keine Bibliothek gefunden</option>';
+      return;
+    }
+    for (const library of libraries) {
+      const option = document.createElement('option');
+      option.value = library.id;
+      option.dataset.type = library.type;
+      option.textContent = `${library.name} (${library.type === 'movie' ? 'Filme' : library.type === 'show' ? 'Serien' : library.type})`;
+      select.append(option);
+    }
+  } catch (error) {
+    select.innerHTML = `<option value="">${error.message}</option>`;
+  }
+  updateBackupEditorLibraryType();
+}
+
+function openBackupEditor(jobId) {
+  const panel = $('#backup-editor-panel');
+  panel.hidden = false;
+  const isNew = !jobId;
+  $('#backup-editor-title').textContent = isNew ? 'Neuen Backup-Job' : 'Backup-Job bearbeiten';
+  $('#backup-editor-id').value = '';
+
+  if (isNew) {
+    $('#backup-editor-form').reset();
+    $('#backup-editor-enabled').checked = true;
+  } else {
+    const job = state.settings.backups.find(j => j.id === jobId);
+    if (!job) return;
+    const ex = job.exportRequest || {};
+    $('#backup-editor-id').value = job.id;
+    $('#backup-editor-name').value = job.name || '';
+    $('#backup-editor-serverType').value = ex.serverType || 'plex';
+    $('#backup-editor-enabled').checked = job.enabled === true;
+    $('#backup-editor-schedule').value = job.schedule || 'daily';
+    $('#backup-editor-time').value = job.time || '03:00';
+    $('#backup-editor-weekday').value = String(job.weekday ?? 0);
+    $('#backup-editor-interval').value = job.intervalHours || 24;
+    $('#backup-editor-retention').value = job.retention || 5;
+    $('#backup-editor-path').value = job.backupPath || '';
+    if (job.useKometaAssetNames) $('#backup-editor-kometa').checked = true;
+
+    for (const checkbox of document.querySelectorAll('#backup-editor-form [name="artworkKinds"]')) {
+      checkbox.checked = (ex.artworkKinds || []).includes(checkbox.value);
+    }
+
+    loadBackupEditorLibraries(ex.serverType).then(() => {
+      if (ex.libraryId) $('#backup-editor-libraryId').value = ex.libraryId;
+    });
+  }
+
+  updateBackupEditorVisibility();
+}
+
+function closeBackupEditor() {
+  $('#backup-editor-panel').hidden = true;
+}
+
+async function saveBackupEditor() {
+  const id = $('#backup-editor-id').value;
+  const isNew = !id;
+  const selectedLibrary = $('#backup-editor-libraryId').selectedOptions[0];
+  const artworkKinds = [...document.querySelectorAll('#backup-editor-form [name="artworkKinds"]:checked')].map(i => i.value);
+  const config = {
+    name: $('#backup-editor-name').value || 'Unbenannt',
+    serverType: $('#backup-editor-serverType').value,
+    libraryId: $('#backup-editor-libraryId').value,
+    libraryType: selectedLibrary?.dataset.type || 'all',
+    artworkKinds,
+    useKometaAssetNames: $('#backup-editor-kometa').checked,
+    enabled: $('#backup-editor-enabled').checked,
+    schedule: $('#backup-editor-schedule').value,
+    time: $('#backup-editor-time').value,
+    weekday: Number($('#backup-editor-weekday').value),
+    intervalHours: Number($('#backup-editor-interval').value),
+    retention: Number($('#backup-editor-retention').value),
+    backupPath: $('#backup-editor-path').value
+  };
+
+  try {
+    if (isNew) {
+      const job = await api('/api/backups', { method: 'POST', body: config });
+      state.settings.backups = [...(state.settings.backups || []), job];
+    } else {
+      const job = await api(`/api/backups/${id}`, { method: 'PUT', body: config });
+      const idx = state.settings.backups.findIndex(j => j.id === id);
+      if (idx !== -1) state.settings.backups[idx] = job;
+    }
+    refreshBackupList();
+    closeBackupEditor();
+    $('#backup-progress-count').textContent = isNew ? 'Job erstellt' : 'Job aktualisiert';
+  } catch (error) {
+    $('#backup-progress-count').textContent = `Fehler: ${error.message}`;
+  }
+}
+
+async function deleteBackupJob(id) {
+  try {
+    await api(`/api/backups/${id}`, { method: 'DELETE' });
+    state.settings.backups = (state.settings.backups || []).filter(j => j.id !== id);
+    refreshBackupList();
+    $('#backup-progress-count').textContent = 'Job gelöscht';
+  } catch (error) {
+    $('#backup-progress-count').textContent = `Fehler: ${error.message}`;
+  }
+}
+
+async function toggleBackupJob(id) {
+  try {
+    const job = await api(`/api/backups/${id}/toggle`, { method: 'POST' });
+    const idx = state.settings.backups.findIndex(j => j.id === id);
+    if (idx !== -1) state.settings.backups[idx] = job;
+    refreshBackupList();
+    $('#backup-progress-count').textContent = job.enabled ? 'Job aktiviert' : 'Job pausiert';
+  } catch (error) {
+    $('#backup-progress-count').textContent = `Fehler: ${error.message}`;
+  }
+}
+
+async function runBackupJob(jobId) {
+  try {
+    const content = $('#backup-progress-content');
+    content.innerHTML = '<div class="progress-card"><div><strong>Backup läuft</strong><span>Starte…</span></div><progress max="100" value="0"></progress></div>';
+    const job = await api(`/api/backups/${jobId}/run`, { method: 'POST' });
+    pollBackupJob(job.id);
+  } catch (error) {
+    $('#backup-progress-content').innerHTML = `<div class="empty-state">Fehler: ${error.message}</div>`;
+  }
+}
+
+async function pollBackupJob(jobId) {
+  window.clearInterval(state.backupPoll);
+  state.backupPoll = window.setInterval(async () => {
+    let job;
+    try {
+      job = await api(`/api/backups/jobs/${jobId}`);
+    } catch (error) {
+      window.clearInterval(state.backupPoll);
+      $('#backup-progress-content').innerHTML = `<div class="empty-state">Fehler: ${error.message}</div>`;
+      return;
+    }
+    const content = $('#backup-progress-content');
+    const total = job.total || job.result?.count || 0;
+    const exported = job.exported || 0;
+    content.innerHTML = `<div class="progress-card"><div><strong>${job.status === 'completed' ? 'Backup abgeschlossen' : job.status === 'failed' ? 'Backup fehlgeschlagen' : 'Backup läuft'}</strong><span>${job.status === 'failed' ? (job.error || 'Unbekannter Fehler') : `${exported} von ${total || '?'} Dateien`}</span></div><progress max="100" value="${total ? Math.round((exported / total) * 100) : 0}"></progress></div>`;
+
+    if (job.status === 'completed' || job.status === 'failed') {
+      window.clearInterval(state.backupPoll);
+      if (job.status === 'completed' && job.result) {
+        const r = job.result;
+        content.innerHTML += `<div class="result-summary">${renderMetric('Dateien', r.exported)}${renderMetric('Gelöscht', (r.pruned?.length || 0))}<div class="summary-item"><strong>Ordner</strong><span>Format</span></div></div><div class="media-preview"><div class="media-preview-header"><div><strong>${escHtml(r.name)}</strong><span>Backup-Verzeichnis</span></div></div><div class="folder-line">${escHtml(r.backupDirectory)}</div></div>`;
+      }
+      // Refresh backup list to update lastRunAt
+      const settings = await api('/api/settings');
+      state.settings = settings;
+      refreshBackupList();
+    }
+  }, 450);
+}
+
+function renderMetric(label, value) {
+  return `<div class="summary-item"><strong>${value}</strong><span>${label}</span></div>`;
 }
 
 function typeLabel(type) {
@@ -234,31 +460,7 @@ async function loadLibraries(serverType = $('[name="serverType"]').value) {
   updateLibraryType();
 }
 
-async function loadBackupLibraries(serverType = $('#backup-form [name="serverType"]').value) {
-  const select = $('#backup-library-select');
-  select.innerHTML = '<option value="">Lade Bibliotheken</option>';
-  let libraries = [];
-  try {
-    libraries = await api(`/api/libraries?serverType=${encodeURIComponent(serverType)}`);
-  } catch (error) {
-    select.innerHTML = `<option value="">${error.message}</option>`;
-    return;
-  }
-  if (!libraries.length) {
-    select.innerHTML = '<option value="">Keine Bibliothek gefunden</option>';
-    return;
-  }
-  select.innerHTML = '';
-  for (const library of libraries) {
-    const option = document.createElement('option');
-    option.value = library.id;
-    option.dataset.type = library.type;
-    option.textContent = `${library.name} (${typeLabel(library.type)})`;
-    select.append(option);
-  }
-  const savedLibraryId = state.settings?.backups?.[0]?.exportRequest?.libraryId;
-  if (savedLibraryId) select.value = savedLibraryId;
-}
+/* ── Backup UI helpers (replaced by multi-job management above) ── */
 
 function renderFiles(plan) {
   $('#result-count').textContent = `${plan.count} Dateien`;
@@ -589,57 +791,6 @@ function renderRestoreProgress(job) {
     : `${restored} von ${total || '?'} Dateien`;
 }
 
-function renderBackupProgress(job) {
-  const progress = $('#backup-progress');
-  const bar = $('#backup-progress-bar');
-  const label = $('#backup-progress-label');
-  const detail = $('#backup-progress-detail');
-  const total = job.total || job.result?.count || 0;
-  const exported = job.exported || 0;
-  progress.hidden = false;
-  bar.value = total ? Math.round((exported / total) * 100) : 0;
-  label.textContent = job.status === 'completed'
-    ? 'Backup abgeschlossen'
-    : job.status === 'failed'
-      ? 'Backup fehlgeschlagen'
-      : 'Backup läuft';
-  detail.textContent = job.status === 'failed'
-    ? job.error
-    : `${exported} von ${total || '?'} Dateien`;
-}
-
-function renderBackupResult(result) {
-  $('#backup-result-count').textContent = `${result.exported} gesichert`;
-  const summary = $('#backup-result-summary');
-  const list = $('#backup-file-list');
-  summary.innerHTML = '';
-  list.innerHTML = '';
-  summary.hidden = false;
-  renderMetrics(summary, [
-    ['Dateien', result.exported],
-    ['Versionen gelöscht', result.pruned?.length || 0],
-    ['Format', 'Ordner']
-  ]);
-  const item = document.createElement('div');
-  item.className = 'media-preview';
-  item.innerHTML = '<div class="media-preview-header"><div><strong></strong><span></span></div><span class="media-badge">ohne ZIP</span></div><div class="folder-line"></div>';
-  item.querySelector('strong').textContent = result.name;
-  item.querySelector('span').textContent = 'Backup-Verzeichnis';
-  item.querySelector('.folder-line').textContent = result.backupDirectory;
-  list.append(item);
-}
-
-function renderBackupError(message) {
-  $('#backup-result-count').textContent = 'Fehler';
-  $('#backup-result-summary').hidden = true;
-  const list = $('#backup-file-list');
-  list.innerHTML = '';
-  const row = document.createElement('div');
-  row.className = 'empty-state';
-  row.textContent = message;
-  list.append(row);
-}
-
 async function pollExportJob(jobId) {
   window.clearInterval(state.exportPoll);
   state.exportPoll = window.setInterval(async () => {
@@ -690,26 +841,6 @@ async function pollRestoreJob(jobId) {
   }, 450);
 }
 
-async function pollBackupJob(jobId) {
-  window.clearInterval(state.backupPoll);
-  state.backupPoll = window.setInterval(async () => {
-    let job;
-    try {
-      job = await api(`/api/backups/jobs/${jobId}`);
-    } catch (error) {
-      window.clearInterval(state.backupPoll);
-      renderBackupError(error.message);
-      return;
-    }
-    renderBackupProgress(job);
-    if (job.status === 'completed') {
-      window.clearInterval(state.backupPoll);
-      renderBackupResult(job.result);
-    }
-    if (job.status === 'failed') window.clearInterval(state.backupPoll);
-  }, 450);
-}
-
 async function preview() {
   try {
     const plan = await api('/api/export/preview', {
@@ -731,30 +862,6 @@ async function restorePreview() {
     renderRestorePlan(plan);
   } catch (error) {
     renderRestoreError(error.message);
-  }
-}
-
-async function saveBackupConfig() {
-  const backup = backupPayload();
-  const backups = await api('/api/backups', {
-    method: 'PUT',
-    body: { backups: [backup] }
-  });
-  state.settings.backups = backups;
-  $('#backup-result-count').textContent = 'Konfiguration gespeichert';
-}
-
-async function runBackupNow() {
-  try {
-    await saveBackupConfig();
-    const job = await api('/api/backups/run', {
-      method: 'POST',
-      body: backupPayload()
-    });
-    renderBackupProgress(job);
-    await pollBackupJob(job.id);
-  } catch (error) {
-    renderBackupError(error.message);
   }
 }
 
@@ -853,17 +960,24 @@ function bindForms() {
   $('[name="serverType"]').addEventListener('change', event => {
     loadLibraries(event.currentTarget.value);
   });
-  $('#backup-form [name="serverType"]').addEventListener('change', event => {
-    loadBackupLibraries(event.currentTarget.value);
-  });
   $('#library-select').addEventListener('change', updateLibraryType);
 
   $('#preview-button').addEventListener('click', preview);
   $('#restore-preview-button').addEventListener('click', restorePreview);
-  $('#backup-save-button').addEventListener('click', () => {
-    saveBackupConfig().catch(error => renderBackupError(error.message));
+
+  // Backup editor bindings
+  $('#backup-add-button').addEventListener('click', () => openBackupEditor(null));
+  $('#backup-editor-close').addEventListener('click', closeBackupEditor);
+  $('#backup-editor-cancel').addEventListener('click', closeBackupEditor);
+  $('#backup-editor-form').addEventListener('submit', async event => {
+    event.preventDefault();
+    await saveBackupEditor();
   });
-  $('#backup-run-button').addEventListener('click', runBackupNow);
+  $('#backup-editor-schedule').addEventListener('change', updateBackupEditorVisibility);
+  $('#backup-editor-serverType').addEventListener('change', event => {
+    loadBackupEditorLibraries(event.currentTarget.value);
+  });
+  $('#backup-editor-libraryId').addEventListener('change', updateBackupEditorLibraryType);
 
   $('#export-form').addEventListener('submit', async event => {
     event.preventDefault();
@@ -932,7 +1046,6 @@ async function boot() {
   $('#health').textContent = health.ok ? 'Bereit' : 'Nicht bereit';
   fillSettings(await api('/api/settings'));
   await loadLibraries();
-  await loadBackupLibraries();
 }
 
 boot().catch(error => {

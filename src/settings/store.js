@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { decryptJson, encryptJson } from './crypto.js';
+import { normalizeBackupConfig } from '../services/backup.js';
 
 const dataDir = process.env.DATA_DIR || path.resolve('data');
 const settingsPath = path.join(dataDir, 'settings.enc.json');
@@ -82,18 +83,62 @@ async function save(incoming) {
   return publicSettings(next);
 }
 
-async function replaceBackups(backups) {
+async function persistBackups(backups) {
   const current = await loadPrivate();
   const next = mergeSettings(current, { backups });
   await mkdir(dataDir, { recursive: true });
   await writeFile(settingsPath, JSON.stringify(encryptJson(next), null, 2));
-  return publicSettings(next);
+  return next;
+}
+
+async function replaceBackups(backups) {
+  const settings = await persistBackups(backups);
+  return publicSettings(settings);
+}
+
+async function addBackupJob(config) {
+  const settings = await loadPrivate();
+  const job = normalizeBackupConfig(config);
+  const backups = [...(settings.backups || []), job];
+  await persistBackups(backups);
+  return job;
+}
+
+async function getBackupJob(id) {
+  const settings = await loadPrivate();
+  const backups = Array.isArray(settings.backups) ? settings.backups : [];
+  return backups.find(job => job.id === id) || null;
+}
+
+async function updateBackupJob(id, config) {
+  const settings = await loadPrivate();
+  const backups = Array.isArray(settings.backups) ? [...settings.backups] : [];
+  const index = backups.findIndex(job => job.id === id);
+  if (index === -1) throw new Error(`Backup-Job '${id}' nicht gefunden`);
+  const merged = normalizeBackupConfig({ ...backups[index], ...config, id });
+  backups[index] = merged;
+  await persistBackups(backups);
+  return merged;
+}
+
+async function deleteBackupJob(id) {
+  const settings = await loadPrivate();
+  const backups = Array.isArray(settings.backups) ? [...settings.backups] : [];
+  const index = backups.findIndex(job => job.id === id);
+  if (index === -1) throw new Error(`Backup-Job '${id}' nicht gefunden`);
+  backups.splice(index, 1);
+  await persistBackups(backups);
+  return { deleted: id };
 }
 
 export const settingsStore = {
   loadPrivate,
   save,
   replaceBackups,
+  addBackupJob,
+  getBackupJob,
+  updateBackupJob,
+  deleteBackupJob,
   async loadPublic() {
     return publicSettings(await loadPrivate());
   }

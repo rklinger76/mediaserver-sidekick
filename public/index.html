@@ -129,95 +129,110 @@
         </section>
 
         <section class="view" id="view-backup">
-          <div class="work-grid">
-            <form class="panel" id="backup-form">
+          <div class="backup-layout">
+            <div class="panel backup-list-panel">
               <div class="panel-header">
-                <h2>Automatisches Backup</h2>
-                <span>Export regelmäßig in datierte Ordner sichern</span>
+                <h2>Backup-Jobs</h2>
+                <span id="backup-job-count">0 Jobs</span>
+              </div>
+              <div class="backup-job-list" id="backup-job-list">
+                <div class="empty-state">Noch keine Backup-Jobs. Erstelle einen neuen!</div>
+              </div>
+              <button type="button" id="backup-add-button" class="primary">+ Neuen Backup-Job</button>
+            </div>
+
+            <div class="panel backup-editor-panel" id="backup-editor-panel" hidden>
+              <div class="panel-header">
+                <h2 id="backup-editor-title">Neuer Backup-Job</h2>
+                <button type="button" class="icon-button" id="backup-editor-close" aria-label="Schließen">×</button>
               </div>
 
-              <label>Name<input name="name" placeholder="Filme Artwork Backup"></label>
+              <form id="backup-editor-form">
+                <input type="hidden" name="id" id="backup-editor-id">
 
-              <label>
-                Medienserver
-                <select name="serverType">
-                  <option value="plex">Plex</option>
-                  <option value="emby">Emby</option>
-                  <option value="jellyfin">Jellyfin</option>
-                </select>
-              </label>
+                <label>Name<input name="name" id="backup-editor-name" placeholder="z.B. Filme Artwork Backup" required></label>
 
-              <label>
-                Bibliothek
-                <select name="libraryId" id="backup-library-select">
-                  <option value="">Lade Bibliotheken</option>
-                </select>
-              </label>
+                <label>
+                  Medienserver
+                  <select name="serverType" id="backup-editor-serverType">
+                    <option value="plex">Plex</option>
+                    <option value="emby">Emby</option>
+                    <option value="jellyfin">Jellyfin</option>
+                  </select>
+                </label>
 
-              <fieldset class="asset-picker">
-                <legend>Was sichern?</legend>
-                <label class="check-row"><input type="checkbox" name="artworkKinds" value="poster" checked><span>Poster</span></label>
-                <label class="check-row"><input type="checkbox" name="artworkKinds" value="background" checked><span>Fanart</span></label>
-                <label class="check-row"><input type="checkbox" name="artworkKinds" value="seasonPoster" checked><span>Staffelposter</span></label>
-              </fieldset>
+                <label>
+                  Bibliothek
+                  <select name="libraryId" id="backup-editor-libraryId">
+                    <option value="">Bitte Server auswählen</option>
+                  </select>
+                </label>
 
-              <label class="check-row"><input type="checkbox" name="useKometaAssetNames"><span>Kometa Asset Namen verwenden</span></label>
-              <label class="check-row"><input type="checkbox" name="enabled" checked><span>Automatisch ausführen</span></label>
-
-              <label>
-                Wann?
-                <select name="schedule">
-                  <option value="daily">Täglich</option>
-                  <option value="weekly">Wöchentlich</option>
-                  <option value="hourly">Alle X Stunden</option>
-                  <option value="manual">Nur manuell</option>
-                </select>
-              </label>
-              <label>Uhrzeit<input name="time" type="time" value="03:00"></label>
-              <label>Wochentag
-                <select name="weekday">
-                  <option value="0">Sonntag</option>
-                  <option value="1">Montag</option>
-                  <option value="2">Dienstag</option>
-                  <option value="3">Mittwoch</option>
-                  <option value="4">Donnerstag</option>
-                  <option value="5">Freitag</option>
-                  <option value="6">Samstag</option>
-                </select>
-              </label>
-              <label>Intervall in Stunden<input name="intervalHours" type="number" min="1" value="24"></label>
-              <label>Versionen behalten<input name="retention" type="number" min="1" value="5"></label>
-
-              <label>
-                Backup-Verzeichnis
-                <span class="path-field">
-                  <input name="backupPath" placeholder="/backups">
-                  <button type="button" class="secondary browse-button" data-path-target="backupPath">Auswählen</button>
-                </span>
-              </label>
-
-              <div class="progress-card" id="backup-progress" hidden>
-                <div>
-                  <strong id="backup-progress-label">Backup läuft</strong>
-                  <span id="backup-progress-detail">0 von 0 Dateien</span>
+                <div class="library-meta">
+                  <span>Erkannt als</span>
+                  <strong id="backup-editor-library-type">-</strong>
                 </div>
-                <progress id="backup-progress-bar" max="100" value="0"></progress>
-              </div>
 
-              <div class="actions">
-                <button type="button" class="secondary" id="backup-save-button">Konfiguration speichern</button>
-                <button type="button" id="backup-run-button">Jetzt sichern</button>
-              </div>
-            </form>
+                <fieldset class="asset-picker">
+                  <legend>Was sichern?</legend>
+                  <label class="check-row"><input type="checkbox" name="artworkKinds" value="poster" checked><span>Poster</span></label>
+                  <label class="check-row"><input type="checkbox" name="artworkKinds" value="background" checked><span>Fanart</span></label>
+                  <label class="check-row" id="backup-editor-season-row"><input type="checkbox" name="artworkKinds" value="seasonPoster" checked><span>Staffelposter</span></label>
+                </fieldset>
 
-            <div class="panel results-panel">
+                <label class="check-row" id="backup-editor-kometa-row"><input type="checkbox" name="useKometaAssetNames" id="backup-editor-kometa"><span>Kometa Asset Namen verwenden</span></label>
+                <label class="check-row"><input type="checkbox" name="enabled" id="backup-editor-enabled" checked><span>Automatisch ausführen</span></label>
+
+                <label>
+                  Zeitplan
+                  <select name="schedule" id="backup-editor-schedule">
+                    <option value="daily">Täglich</option>
+                    <option value="weekly">Wöchentlich</option>
+                    <option value="hourly">Alle X Stunden</option>
+                    <option value="manual">Nur manuell</option>
+                  </select>
+                </label>
+
+                <label id="backup-editor-time-row">Uhrzeit<input name="time" id="backup-editor-time" type="time" value="03:00"></label>
+
+                <label id="backup-editor-weekday-row">Wochentag
+                  <select name="weekday" id="backup-editor-weekday">
+                    <option value="0">Sonntag</option>
+                    <option value="1">Montag</option>
+                    <option value="2">Dienstag</option>
+                    <option value="3">Mittwoch</option>
+                    <option value="4">Donnerstag</option>
+                    <option value="5">Freitag</option>
+                    <option value="6">Samstag</option>
+                  </select>
+                </label>
+
+                <label id="backup-editor-interval-row">Alle<input name="intervalHours" id="backup-editor-interval" type="number" min="1" value="24"> Stunden</label>
+
+                <label>Versionen behalten<input name="retention" id="backup-editor-retention" type="number" min="1" value="5"></label>
+
+                <label>
+                  Backup-Verzeichnis
+                  <span class="path-field">
+                    <input name="backupPath" id="backup-editor-path" placeholder="/backups">
+                    <button type="button" class="secondary browse-button" data-path-target="backupPath">Auswählen</button>
+                  </span>
+                </label>
+
+                <div class="actions">
+                  <button type="button" class="secondary" id="backup-editor-cancel">Abbrechen</button>
+                  <button type="submit" id="backup-editor-save">Speichern</button>
+                </div>
+              </form>
+            </div>
+
+            <div class="panel backup-progress-panel" id="backup-progress-panel">
               <div class="panel-header">
-                <h2>Backup Status</h2>
-                <span id="backup-result-count">Noch kein Backup</span>
+                <h2>Ausführung</h2>
+                <span id="backup-progress-count">Bereit</span>
               </div>
-              <div class="result-summary" id="backup-result-summary" hidden></div>
-              <div class="file-list" id="backup-file-list">
-                <div class="empty-state">Konfiguriere ein Backup und starte es manuell oder automatisch.</div>
+              <div id="backup-progress-content">
+                <div class="empty-state">Wähle einen Backup-Job aus und starte ihn oder warte auf den automatischen Lauf.</div>
               </div>
             </div>
           </div>

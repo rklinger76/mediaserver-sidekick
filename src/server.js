@@ -185,6 +185,13 @@ async function handleApi(req, res) {
     return;
   }
 
+  if (req.method === 'POST' && url.pathname === '/api/backups') {
+    const body = await readBody(req);
+    const job = await settingsStore.addBackupJob(body);
+    sendJson(res, 201, job);
+    return;
+  }
+
   if (req.method === 'PUT' && url.pathname === '/api/backups') {
     const body = await readBody(req);
     const backups = Array.isArray(body.backups) ? body.backups.map(normalizeBackupConfig) : [];
@@ -193,10 +200,56 @@ async function handleApi(req, res) {
     return;
   }
 
-  if (req.method === 'POST' && url.pathname === '/api/backups/run') {
+  if (req.method === 'GET' && url.pathname.startsWith('/api/backups/') && url.pathname.split('/').length === 4) {
+    const id = url.pathname.split('/')[3];
+    const job = await settingsStore.getBackupJob(id);
+    if (!job) { sendJson(res, 404, { error: 'Backup-Job nicht gefunden' }); return; }
+    sendJson(res, 200, job);
+    return;
+  }
+
+  if (req.method === 'PUT' && url.pathname.startsWith('/api/backups/') && url.pathname.split('/').length === 4) {
+    const id = url.pathname.split('/')[3];
     const body = await readBody(req);
+    try {
+      const job = await settingsStore.updateBackupJob(id, body);
+      sendJson(res, 200, job);
+    } catch (error) {
+      sendJson(res, 404, { error: error.message });
+    }
+    return;
+  }
+
+  if (req.method === 'DELETE' && url.pathname.startsWith('/api/backups/') && url.pathname.split('/').length === 4) {
+    const id = url.pathname.split('/')[3];
+    try {
+      await settingsStore.deleteBackupJob(id);
+      sendJson(res, 200, { deleted: id });
+    } catch (error) {
+      sendJson(res, 404, { error: error.message });
+    }
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname.match(/^\/api\/backups\/([^/]+)\/run$/)) {
+    const id = url.pathname.match(/^\/api\/backups\/([^/]+)\/run$/)[1];
     const settings = await settingsStore.loadPrivate();
-    sendJson(res, 202, await startBackupJob(body, settings));
+    const jobConfig = await settingsStore.getBackupJob(id);
+    if (!jobConfig) { sendJson(res, 404, { error: 'Backup-Job nicht gefunden' }); return; }
+    sendJson(res, 202, await startBackupJob(jobConfig, settings));
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname.match(/^\/api\/backups\/([^/]+)\/toggle$/)) {
+    const id = url.pathname.match(/^\/api\/backups\/([^/]+)\/toggle$/)[1];
+    try {
+      const current = await settingsStore.getBackupJob(id);
+      if (!current) { sendJson(res, 404, { error: 'Backup-Job nicht gefunden' }); return; }
+      const job = await settingsStore.updateBackupJob(id, { enabled: !current.enabled });
+      sendJson(res, 200, job);
+    } catch (error) {
+      sendJson(res, 404, { error: error.message });
+    }
     return;
   }
 
