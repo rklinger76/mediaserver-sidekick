@@ -3,6 +3,7 @@ const state = {
   libraries: [],
   exportPoll: null,
   restorePoll: null,
+  backupPoll: null,
   pathPickerTarget: null,
   pathPickerPath: '/'
 };
@@ -18,6 +19,10 @@ const viewMeta = {
   restore: {
     eyebrow: 'Asset Restore',
     title: 'Assets aus Backups wiederherstellen'
+  },
+  backup: {
+    eyebrow: 'Automatisches Backup',
+    title: 'Artwork regelmäßig sichern'
   },
   settings: {
     eyebrow: 'Docker & Unraid',
@@ -73,7 +78,9 @@ function fillSettings(settings) {
   state.settings = settings;
   $('[name="exportPath"]').placeholder = settings.export.defaultPath;
   $('[name="targetPath"]').placeholder = settings.export.defaultPath;
+  $('[name="backupPath"]').placeholder = settings.backupDefaultPath || '/backups';
   $('[name="export.defaultPath"]').value = settings.export.defaultPath;
+  fillBackupForm((settings.backups || [])[0]);
 
   for (const server of ['plex', 'emby', 'jellyfin']) {
     $(`[name="${server}.url"]`).value = settings[server].url || '';
@@ -139,6 +146,49 @@ function restorePayload() {
   };
 }
 
+function backupPayload() {
+  const form = $('#backup-form');
+  const data = formToObject(form);
+  const selectedLibrary = $('#backup-library-select').selectedOptions[0];
+  const artworkKinds = [...form.querySelectorAll('[name="artworkKinds"]:checked')].map(input => input.value);
+  return {
+    id: state.settings?.backups?.[0]?.id,
+    enabled: Boolean(data.enabled),
+    name: data.name || 'Artwork Backup',
+    schedule: data.schedule || 'daily',
+    time: data.time || '03:00',
+    weekday: Number(data.weekday || 0),
+    intervalHours: Number(data.intervalHours || 24),
+    retention: Number(data.retention || 5),
+    backupPath: data.backupPath || '/backups',
+    exportRequest: {
+      serverType: data.serverType,
+      libraryId: data.libraryId,
+      libraryType: selectedLibrary?.dataset.type || 'all',
+      artworkKinds,
+      useKometaAssetNames: Boolean(data.useKometaAssetNames)
+    }
+  };
+}
+
+function fillBackupForm(config) {
+  if (!config) return;
+  const form = $('#backup-form');
+  form.elements.name.value = config.name || '';
+  form.elements.serverType.value = config.exportRequest?.serverType || 'plex';
+  form.elements.schedule.value = config.schedule || 'daily';
+  form.elements.time.value = config.time || '03:00';
+  form.elements.weekday.value = String(config.weekday ?? 0);
+  form.elements.intervalHours.value = config.intervalHours || 24;
+  form.elements.retention.value = config.retention || 5;
+  form.elements.backupPath.value = config.backupPath || '';
+  form.elements.enabled.checked = config.enabled === true;
+  form.elements.useKometaAssetNames.checked = config.exportRequest?.useKometaAssetNames === true;
+  for (const checkbox of form.querySelectorAll('[name="artworkKinds"]')) {
+    checkbox.checked = (config.exportRequest?.artworkKinds || []).includes(checkbox.value);
+  }
+}
+
 function typeLabel(type) {
   if (type === 'movie') return 'Filme';
   if (type === 'show') return 'Serien';
@@ -182,6 +232,32 @@ async function loadLibraries(serverType = $('[name="serverType"]').value) {
     select.append(option);
   }
   updateLibraryType();
+}
+
+async function loadBackupLibraries(serverType = $('#backup-form [name="serverType"]').value) {
+  const select = $('#backup-library-select');
+  select.innerHTML = '<option value="">Lade Bibliotheken</option>';
+  let libraries = [];
+  try {
+    libraries = await api(`/api/libraries?serverType=${encodeURIComponent(serverType)}`);
+  } catch (error) {
+    select.innerHTML = `<option value="">${error.message}</option>`;
+    return;
+  }
+  if (!libraries.length) {
+    select.innerHTML = '<option value="">Keine Bibliothek gefunden</option>';
+    return;
+  }
+  select.innerHTML = '';
+  for (const library of libraries) {
+    const option = document.createElement('option');
+    option.value = library.id;
+    option.dataset.type = library.type;
+    option.textContent = `${library.name} (${typeLabel(library.type)})`;
+    select.append(option);
+  }
+  const savedLibraryId = state.settings?.backups?.[0]?.exportRequest?.libraryId;
+  if (savedLibraryId) select.value = savedLibraryId;
 }
 
 function renderFiles(plan) {
@@ -513,6 +589,57 @@ function renderRestoreProgress(job) {
     : `${restored} von ${total || '?'} Dateien`;
 }
 
+function renderBackupProgress(job) {
+  const progress = $('#backup-progress');
+  const bar = $('#backup-progress-bar');
+  const label = $('#backup-progress-label');
+  const detail = $('#backup-progress-detail');
+  const total = job.total || job.result?.count || 0;
+  const exported = job.exported || 0;
+  progress.hidden = false;
+  bar.value = total ? Math.round((exported / total) * 100) : 0;
+  label.textContent = job.status === 'completed'
+    ? 'Backup abgeschlossen'
+    : job.status === 'failed'
+      ? 'Backup fehlgeschlagen'
+      : 'Backup läuft';
+  detail.textContent = job.status === 'failed'
+    ? job.error
+    : `${exported} von ${total || '?'} Dateien`;
+}
+
+function renderBackupResult(result) {
+  $('#backup-result-count').textContent = `${result.exported} gesichert`;
+  const summary = $('#backup-result-summary');
+  const list = $('#backup-file-list');
+  summary.innerHTML = '';
+  list.innerHTML = '';
+  summary.hidden = false;
+  renderMetrics(summary, [
+    ['Dateien', result.exported],
+    ['Versionen gelöscht', result.pruned?.length || 0],
+    ['Format', 'Ordner']
+  ]);
+  const item = document.createElement('div');
+  item.className = 'media-preview';
+  item.innerHTML = '<div class="media-preview-header"><div><strong></strong><span></span></div><span class="media-badge">ohne ZIP</span></div><div class="folder-line"></div>';
+  item.querySelector('strong').textContent = result.name;
+  item.querySelector('span').textContent = 'Backup-Verzeichnis';
+  item.querySelector('.folder-line').textContent = result.backupDirectory;
+  list.append(item);
+}
+
+function renderBackupError(message) {
+  $('#backup-result-count').textContent = 'Fehler';
+  $('#backup-result-summary').hidden = true;
+  const list = $('#backup-file-list');
+  list.innerHTML = '';
+  const row = document.createElement('div');
+  row.className = 'empty-state';
+  row.textContent = message;
+  list.append(row);
+}
+
 async function pollExportJob(jobId) {
   window.clearInterval(state.exportPoll);
   state.exportPoll = window.setInterval(async () => {
@@ -563,6 +690,26 @@ async function pollRestoreJob(jobId) {
   }, 450);
 }
 
+async function pollBackupJob(jobId) {
+  window.clearInterval(state.backupPoll);
+  state.backupPoll = window.setInterval(async () => {
+    let job;
+    try {
+      job = await api(`/api/backups/jobs/${jobId}`);
+    } catch (error) {
+      window.clearInterval(state.backupPoll);
+      renderBackupError(error.message);
+      return;
+    }
+    renderBackupProgress(job);
+    if (job.status === 'completed') {
+      window.clearInterval(state.backupPoll);
+      renderBackupResult(job.result);
+    }
+    if (job.status === 'failed') window.clearInterval(state.backupPoll);
+  }, 450);
+}
+
 async function preview() {
   try {
     const plan = await api('/api/export/preview', {
@@ -584,6 +731,30 @@ async function restorePreview() {
     renderRestorePlan(plan);
   } catch (error) {
     renderRestoreError(error.message);
+  }
+}
+
+async function saveBackupConfig() {
+  const backup = backupPayload();
+  const backups = await api('/api/backups', {
+    method: 'PUT',
+    body: { backups: [backup] }
+  });
+  state.settings.backups = backups;
+  $('#backup-result-count').textContent = 'Konfiguration gespeichert';
+}
+
+async function runBackupNow() {
+  try {
+    await saveBackupConfig();
+    const job = await api('/api/backups/run', {
+      method: 'POST',
+      body: backupPayload()
+    });
+    renderBackupProgress(job);
+    await pollBackupJob(job.id);
+  } catch (error) {
+    renderBackupError(error.message);
   }
 }
 
@@ -682,10 +853,17 @@ function bindForms() {
   $('[name="serverType"]').addEventListener('change', event => {
     loadLibraries(event.currentTarget.value);
   });
+  $('#backup-form [name="serverType"]').addEventListener('change', event => {
+    loadBackupLibraries(event.currentTarget.value);
+  });
   $('#library-select').addEventListener('change', updateLibraryType);
 
   $('#preview-button').addEventListener('click', preview);
   $('#restore-preview-button').addEventListener('click', restorePreview);
+  $('#backup-save-button').addEventListener('click', () => {
+    saveBackupConfig().catch(error => renderBackupError(error.message));
+  });
+  $('#backup-run-button').addEventListener('click', runBackupNow);
 
   $('#export-form').addEventListener('submit', async event => {
     event.preventDefault();
@@ -754,6 +932,7 @@ async function boot() {
   $('#health').textContent = health.ok ? 'Bereit' : 'Nicht bereit';
   fillSettings(await api('/api/settings'));
   await loadLibraries();
+  await loadBackupLibraries();
 }
 
 boot().catch(error => {

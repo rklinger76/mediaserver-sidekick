@@ -12,7 +12,8 @@ const emptySettings = {
   export: {
     defaultPath: process.env.DEFAULT_EXPORT_DIR || '/exports',
     assetFolders: true
-  }
+  },
+  backups: []
 };
 
 function maskSecret(value) {
@@ -30,6 +31,7 @@ function publicSettings(settings) {
       defaultPath: settings.export?.defaultPath || process.env.DEFAULT_EXPORT_DIR || '/exports',
       assetFolders: settings.export?.assetFolders !== false
     },
+    backups: Array.isArray(settings.backups) ? settings.backups : [],
     secretsSaved: {
       plex: Boolean(settings.plex?.token),
       emby: Boolean(settings.emby?.apiKey),
@@ -55,7 +57,10 @@ function mergeSettings(existing, incoming) {
     export: {
       defaultPath: incoming.export?.defaultPath || existing.export.defaultPath,
       assetFolders: incoming.export?.assetFolders !== false
-    }
+    },
+    backups: Array.isArray(incoming.backups)
+      ? incoming.backups
+      : Array.isArray(existing.backups) ? existing.backups : []
   };
 }
 
@@ -77,9 +82,18 @@ async function save(incoming) {
   return publicSettings(next);
 }
 
+async function replaceBackups(backups) {
+  const current = await loadPrivate();
+  const next = mergeSettings(current, { backups });
+  await mkdir(dataDir, { recursive: true });
+  await writeFile(settingsPath, JSON.stringify(encryptJson(next), null, 2));
+  return publicSettings(next);
+}
+
 export const settingsStore = {
   loadPrivate,
   save,
+  replaceBackups,
   async loadPublic() {
     return publicSettings(await loadPrivate());
   }

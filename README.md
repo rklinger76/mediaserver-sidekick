@@ -2,7 +2,7 @@
 
 Mediaserver Sidekick exports artwork from Plex, Emby, and Jellyfin into a folder that can be mounted in Docker or Unraid. It helps you create a portable artwork/asset folder for direct use, backups, or Kometa asset management.
 
-The current version contains the web UI, encrypted settings storage, export planning, library selection, artwork type filters, Plex/Emby/Jellyfin adapters, Docker support, and an asset restore workflow.
+The current version contains the web UI, encrypted settings storage, export planning, library selection, artwork type filters, Plex/Emby/Jellyfin adapters, Docker support, automated folder-based artwork backups, and an asset restore workflow.
 
 ## Run locally
 
@@ -19,6 +19,7 @@ docker build -t mediaserver-sidekick .
 docker run --rm -p 3000:3000 \
   -v "$(pwd)/data:/app/data" \
   -v "$(pwd)/exports:/exports" \
+  -v "$(pwd)/backups:/backups" \
   -e SIDEKICK_SECRET="change-this-long-random-secret" \
   mediaserver-sidekick
 ```
@@ -30,6 +31,7 @@ port on the host, change the left side of the mapping:
 docker run --rm -p 8088:3000 \
   -v "$(pwd)/data:/app/data" \
   -v "$(pwd)/exports:/exports" \
+  -v "$(pwd)/backups:/backups" \
   -e SIDEKICK_SECRET="change-this-long-random-secret" \
   mediaserver-sidekick
 ```
@@ -112,8 +114,9 @@ Label or Device** -> **Path**.
 
 | Container Path | Example Host Path | Purpose |
 | --- | --- | --- |
-| `/app/data` | `/mnt/user/appdata/mediaserver-sidekick` | Stores encrypted settings, including saved Plex/Emby/Jellyfin credentials. |
+| `/app/data` | `/mnt/user/appdata/mediaserver-sidekick` | Stores encrypted settings, including saved Plex/Emby/Jellyfin credentials and backup schedules. |
 | `/exports` | `/mnt/user/media/assets` | Default folder where exported artwork is written and where restore jobs can target files. |
+| `/backups` | `/mnt/user/backups/mediaserver-sidekick` | Recommended target for automated artwork backups. Backups are normal timestamped folders, not ZIP archives. |
 
 #### `/app/data` settings folder
 
@@ -148,6 +151,25 @@ So if you map `/mnt/user/media/assets` to `/exports`, the app writes to
 You can later choose a different export path in the WebUI, but it must be a path
 that exists inside the container. In most Unraid setups, using `/exports` is the
 simplest option.
+
+#### `/backups` artwork backup folder
+
+This path is where scheduled artwork backups should be written. Sidekick creates
+a timestamped folder for each backup run and writes a `manifest.json` next to the
+images. It intentionally does **not** ZIP the images, because poster/fanart files
+are already compressed and plain folders are easier to inspect and restore.
+
+Recommended Unraid host path:
+
+```text
+/mnt/user/backups/mediaserver-sidekick
+```
+
+Inside the app, use:
+
+```text
+/backups
+```
 
 ### 6. Variables
 
@@ -196,6 +218,7 @@ Use this as a checklist:
 | Port | WebUI | `3000` | `8088` or another free host port |
 | Path | App data | `/app/data` | `/mnt/user/appdata/mediaserver-sidekick` |
 | Path | Exports | `/exports` | `/mnt/user/media/assets` |
+| Path | Backups | `/backups` | `/mnt/user/backups/mediaserver-sidekick` |
 | Variable | `SIDEKICK_SECRET` | - | A long stable random secret |
 | Variable | `DEFAULT_EXPORT_DIR` | - | `/exports` |
 | Icon URL | Unraid icon | - | `https://raw.githubusercontent.com/rklinger76/mediaserver-sidekick/main/public/icon.jpg` |
@@ -220,6 +243,7 @@ Adjust the port if you chose a different host port.
 8. Keep the export path as `/exports` unless you mapped another folder.
 9. Preview the export plan.
 10. Run the export when the plan looks correct.
+11. Optional: open **Backup**, configure schedule/retention, set Backup-Verzeichnis to `/backups`, and save or run a backup now.
 
 ## Volumes and Environment
 

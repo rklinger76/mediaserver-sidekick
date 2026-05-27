@@ -28,6 +28,7 @@
         </div>
         <nav>
           <button class="nav-item active" data-view="export">Export</button>
+          <button class="nav-item" data-view="backup">Backup</button>
           <button class="nav-item" data-view="restore">Restore</button>
           <button class="nav-item" data-view="settings">Settings</button>
         </nav>
@@ -122,6 +123,101 @@
               <div class="result-summary" id="result-summary" hidden></div>
               <div class="file-list" id="file-list">
                 <div class="empty-state">Wähle einen Server und erstelle eine Vorschau.</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="view-backup">
+          <div class="work-grid">
+            <form class="panel" id="backup-form">
+              <div class="panel-header">
+                <h2>Automatisches Backup</h2>
+                <span>Export regelmäßig in datierte Ordner sichern</span>
+              </div>
+
+              <label>Name<input name="name" placeholder="Filme Artwork Backup"></label>
+
+              <label>
+                Medienserver
+                <select name="serverType">
+                  <option value="plex">Plex</option>
+                  <option value="emby">Emby</option>
+                  <option value="jellyfin">Jellyfin</option>
+                </select>
+              </label>
+
+              <label>
+                Bibliothek
+                <select name="libraryId" id="backup-library-select">
+                  <option value="">Lade Bibliotheken</option>
+                </select>
+              </label>
+
+              <fieldset class="asset-picker">
+                <legend>Was sichern?</legend>
+                <label class="check-row"><input type="checkbox" name="artworkKinds" value="poster" checked><span>Poster</span></label>
+                <label class="check-row"><input type="checkbox" name="artworkKinds" value="background" checked><span>Fanart</span></label>
+                <label class="check-row"><input type="checkbox" name="artworkKinds" value="seasonPoster" checked><span>Staffelposter</span></label>
+              </fieldset>
+
+              <label class="check-row"><input type="checkbox" name="useKometaAssetNames"><span>Kometa Asset Namen verwenden</span></label>
+              <label class="check-row"><input type="checkbox" name="enabled" checked><span>Automatisch ausführen</span></label>
+
+              <label>
+                Wann?
+                <select name="schedule">
+                  <option value="daily">Täglich</option>
+                  <option value="weekly">Wöchentlich</option>
+                  <option value="hourly">Alle X Stunden</option>
+                  <option value="manual">Nur manuell</option>
+                </select>
+              </label>
+              <label>Uhrzeit<input name="time" type="time" value="03:00"></label>
+              <label>Wochentag
+                <select name="weekday">
+                  <option value="0">Sonntag</option>
+                  <option value="1">Montag</option>
+                  <option value="2">Dienstag</option>
+                  <option value="3">Mittwoch</option>
+                  <option value="4">Donnerstag</option>
+                  <option value="5">Freitag</option>
+                  <option value="6">Samstag</option>
+                </select>
+              </label>
+              <label>Intervall in Stunden<input name="intervalHours" type="number" min="1" value="24"></label>
+              <label>Versionen behalten<input name="retention" type="number" min="1" value="5"></label>
+
+              <label>
+                Backup-Verzeichnis
+                <span class="path-field">
+                  <input name="backupPath" placeholder="/backups">
+                  <button type="button" class="secondary browse-button" data-path-target="backupPath">Auswählen</button>
+                </span>
+              </label>
+
+              <div class="progress-card" id="backup-progress" hidden>
+                <div>
+                  <strong id="backup-progress-label">Backup läuft</strong>
+                  <span id="backup-progress-detail">0 von 0 Dateien</span>
+                </div>
+                <progress id="backup-progress-bar" max="100" value="0"></progress>
+              </div>
+
+              <div class="actions">
+                <button type="button" class="secondary" id="backup-save-button">Konfiguration speichern</button>
+                <button type="button" id="backup-run-button">Jetzt sichern</button>
+              </div>
+            </form>
+
+            <div class="panel results-panel">
+              <div class="panel-header">
+                <h2>Backup Status</h2>
+                <span id="backup-result-count">Noch kein Backup</span>
+              </div>
+              <div class="result-summary" id="backup-result-summary" hidden></div>
+              <div class="file-list" id="backup-file-list">
+                <div class="empty-state">Konfiguriere ein Backup und starte es manuell oder automatisch.</div>
               </div>
             </div>
           </div>

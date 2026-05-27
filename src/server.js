@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { settingsStore } from './settings/store.js';
 import { createExportPlan, getExportJob, listLibraries, startExportJob } from './services/exporter.js';
 import { createRestorePlan, getRestoreJob, startRestoreJob } from './services/restore.js';
+import { getBackupJob, normalizeBackupConfig, startBackupJob, startBackupSchedules } from './services/backup.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.resolve(__dirname, '..', 'public');
@@ -178,6 +179,37 @@ async function handleApi(req, res) {
     return;
   }
 
+  if (req.method === 'GET' && url.pathname === '/api/backups') {
+    const settings = await settingsStore.loadPublic();
+    sendJson(res, 200, settings.backups || []);
+    return;
+  }
+
+  if (req.method === 'PUT' && url.pathname === '/api/backups') {
+    const body = await readBody(req);
+    const backups = Array.isArray(body.backups) ? body.backups.map(normalizeBackupConfig) : [];
+    const saved = await settingsStore.replaceBackups(backups);
+    sendJson(res, 200, saved.backups || []);
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/backups/run') {
+    const body = await readBody(req);
+    const settings = await settingsStore.loadPrivate();
+    sendJson(res, 202, await startBackupJob(body, settings));
+    return;
+  }
+
+  if (req.method === 'GET' && url.pathname.startsWith('/api/backups/jobs/')) {
+    const job = getBackupJob(url.pathname.split('/').pop());
+    if (!job) {
+      sendJson(res, 404, { error: 'Backup job not found' });
+      return;
+    }
+    sendJson(res, 200, job);
+    return;
+  }
+
   sendJson(res, 404, { error: 'Not found' });
 }
 
@@ -192,6 +224,8 @@ const server = http.createServer(async (req, res) => {
     sendJson(res, 500, { error: error.message || 'Unexpected error' });
   }
 });
+
+startBackupSchedules(settingsStore);
 
 server.listen(port, host, () => {
   console.log(`Mediaserver Sidekick is running on http://${host}:${port}`);
