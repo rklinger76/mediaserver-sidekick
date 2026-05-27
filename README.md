@@ -1,6 +1,8 @@
 # Mediaserver Sidekick
 
-Mediaserver Sidekick exports artwork from Plex, Emby, and Jellyfin into a folder that can be mounted in Docker or Unraid. The first version contains the web UI, encrypted settings storage, export planning, library selection, artwork type filters, and a Plex API adapter foundation.
+Mediaserver Sidekick exports artwork from Plex, Emby, and Jellyfin into a folder that can be mounted in Docker or Unraid. It helps you create a portable artwork/asset folder for direct use, backups, or Kometa asset management.
+
+The current version contains the web UI, encrypted settings storage, export planning, library selection, artwork type filters, Plex/Emby/Jellyfin adapters, Docker support, and an asset restore workflow.
 
 ## Run locally
 
@@ -32,54 +34,187 @@ docker run --rm -p 8088:3000 \
   mediaserver-sidekick
 ```
 
-For Unraid, keep the container port at `3000` and set the host port to the port
-you want to open in your browser.
+In this example the app is still running on port `3000` inside the container,
+but you open it on port `8088` on the host: `http://localhost:8088`.
 
 ## Unraid Installation
 
+This section explains what each Unraid template setting is for. The important
+idea is:
+
+- **Container paths** are the paths Mediaserver Sidekick sees inside Docker.
+- **Host paths** are the real folders on your Unraid server.
+- **Ports** decide where the WebUI is reachable in your browser.
+- **Variables** configure defaults and encryption.
+
+### 1. Add the container
+
 1. Open the Unraid web UI.
-2. Go to **Docker** and select **Add Container**.
-3. Switch to **Advanced View** if you want to set the WebUI URL.
-4. Fill in the container settings:
+2. Go to **Docker**.
+3. Click **Add Container**.
+4. Switch to **Advanced View** if you want to set the WebUI URL.
 
-| Field | Value |
+### 2. Basic container settings
+
+| Field | Value | Why |
+| --- | --- | --- |
+| Name | `Mediaserver-Sidekick` | The name shown in Unraid's Docker tab. |
+| Repository | `ghcr.io/rklinger76/mediaserver-sidekick:latest` | The image Unraid should pull. |
+| Network Type | `bridge` | Recommended default for this app. |
+| WebUI | `http://[IP]:[PORT:3000]` | Lets the Unraid Docker tab open the app. |
+
+### 3. Port mapping
+
+Add a port mapping for the WebUI:
+
+| Setting | Value |
 | --- | --- |
-| Name | `Mediaserver-Sidekick` |
-| Repository | `ghcr.io/rklinger76/mediaserver-sidekick:latest` |
-| WebUI | `http://[IP]:[PORT:3000]` |
-| Network Type | `bridge` |
 | Container Port | `3000` |
-| Host Port | any free port, for example `8088` |
+| Host Port | Any free port, for example `8088` |
+| Connection Type | `TCP` |
 
-5. Add these paths:
+The **Container Port** should normally stay `3000`. That is the port used inside
+the Docker container.
 
-| Container Path | Host Path | Purpose |
+The **Host Port** is the port you open in your browser. If you set the host port
+to `8088`, open:
+
+```text
+http://tower:8088
+```
+
+or:
+
+```text
+http://<your-unraid-ip>:8088
+```
+
+Only change the internal `PORT` environment variable if you also know why you
+need to change the container port. For a normal Unraid setup, leave the app's
+internal port at `3000` and only change the **Host Port**.
+
+### 4. Path mappings
+
+Add these paths in the Unraid template with **Add another Path, Port, Variable,
+Label or Device** -> **Path**.
+
+| Container Path | Example Host Path | Purpose |
 | --- | --- | --- |
-| `/app/data` | `/mnt/user/appdata/mediaserver-sidekick` | Persistent encrypted settings |
-| `/exports` | `/mnt/user/media/assets` | Default artwork export/restore target |
+| `/app/data` | `/mnt/user/appdata/mediaserver-sidekick` | Stores encrypted settings, including saved Plex/Emby/Jellyfin credentials. |
+| `/exports` | `/mnt/user/media/assets` | Default folder where exported artwork is written and where restore jobs can target files. |
 
-6. Add these variables:
+#### `/app/data` settings folder
 
-| Variable | Example | Required |
-| --- | --- | --- |
-| `SIDEKICK_SECRET` | `use-a-long-random-stable-secret` | Yes |
-| `DEFAULT_EXPORT_DIR` | `/exports` | No |
+This path should point to a persistent appdata folder. If you do not map it,
+settings may be lost when the container is recreated.
 
-7. Apply the container.
-8. Open the WebUI, for example `http://tower:8088`.
+Recommended Unraid host path:
 
-Keep `SIDEKICK_SECRET` unchanged after the first start. It is used to encrypt
-saved Plex, Emby, and Jellyfin credentials. If it changes, existing saved
-credentials cannot be decrypted.
+```text
+/mnt/user/appdata/mediaserver-sidekick
+```
 
-The port you usually change in Unraid is the **Host Port**. Leave the container
-port at `3000` unless you also set the internal `PORT` environment variable.
+#### `/exports` artwork folder
+
+This path is where Mediaserver Sidekick writes exported artwork by default.
+Choose a folder that makes sense for your media setup, for example:
+
+```text
+/mnt/user/media/assets
+```
+
+Inside the app, this folder appears as:
+
+```text
+/exports
+```
+
+So if you map `/mnt/user/media/assets` to `/exports`, the app writes to
+`/exports`, but the files are actually stored on Unraid in
+`/mnt/user/media/assets`.
+
+You can later choose a different export path in the WebUI, but it must be a path
+that exists inside the container. In most Unraid setups, using `/exports` is the
+simplest option.
+
+### 5. Variables
+
+Add these entries with **Add another Path, Port, Variable, Label or Device** ->
+**Variable**.
+
+| Variable | Example | Required | Purpose |
+| --- | --- | --- | --- |
+| `SIDEKICK_SECRET` | `use-a-long-random-stable-secret` | Yes | Encryption key for saved Plex/Emby/Jellyfin credentials. |
+| `DEFAULT_EXPORT_DIR` | `/exports` | No | Default export path shown in the WebUI. |
+
+#### `SIDEKICK_SECRET`
+
+Set this to a long, random value and keep it unchanged after the first start.
+Mediaserver Sidekick uses it to encrypt saved Plex tokens and Emby/Jellyfin API
+keys.
+
+Example:
+
+```text
+SIDEKICK_SECRET=replace-this-with-a-long-random-secret
+```
+
+Important: if you change `SIDEKICK_SECRET` later, existing saved credentials in
+`/app/data` cannot be decrypted anymore. You would need to enter the credentials
+again.
+
+#### `DEFAULT_EXPORT_DIR`
+
+For a normal Unraid setup, set this to:
+
+```text
+/exports
+```
+
+This is the container path, not the Unraid host path. Do not put
+`/mnt/user/media/assets` here unless you also mounted that exact path into the
+container.
+
+### 6. Recommended minimal Unraid template
+
+Use this as a checklist:
+
+| Type | Name | Container value | Host/default value |
+| --- | --- | --- | --- |
+| Port | WebUI | `3000` | `8088` or another free host port |
+| Path | App data | `/app/data` | `/mnt/user/appdata/mediaserver-sidekick` |
+| Path | Exports | `/exports` | `/mnt/user/media/assets` |
+| Variable | `SIDEKICK_SECRET` | - | A long stable random secret |
+| Variable | `DEFAULT_EXPORT_DIR` | - | `/exports` |
+
+After applying the template, open the WebUI from the Docker tab or browse to:
+
+```text
+http://tower:8088
+```
+
+Adjust the port if you chose a different host port.
+
+### 7. First run checklist
+
+1. Open the WebUI.
+2. Go to the settings view.
+3. Enter your Plex, Emby, or Jellyfin server URL.
+4. Enter the matching token or API key.
+5. Save settings.
+6. Go back to export.
+7. Select a server type and library.
+8. Keep the export path as `/exports` unless you mapped another folder.
+9. Preview the export plan.
+10. Run the export when the plan looks correct.
 
 ## Volumes and Environment
 
-`/app/data` stores encrypted settings. `/exports` is the default artwork export path and can be overridden in the web UI.
+`/app/data` stores encrypted settings. `/exports` is the default artwork export
+path and can be overridden in the web UI.
 
-Set `SIDEKICK_SECRET` to a stable, long random value. If it changes, previously saved encrypted settings cannot be decrypted.
+Set `SIDEKICK_SECRET` to a stable, long random value. If it changes, previously
+saved encrypted settings cannot be decrypted.
 
 Optional environment variables:
 
