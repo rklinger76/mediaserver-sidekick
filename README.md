@@ -62,8 +62,20 @@ idea is:
 | Repository | `ghcr.io/rklinger76/mediaserver-sidekick:latest` | The image Unraid should pull. |
 | Network Type | `bridge` | Recommended default for this app. |
 | WebUI | `http://[IP]:[PORT:3000]` | Lets the Unraid Docker tab open the app. |
+| Icon URL | `https://raw.githubusercontent.com/rklinger76/mediaserver-sidekick/main/public/icon.jpg` | Optional icon for the Unraid Docker overview. |
 
-### 3. Port mapping
+### 3. Unraid icon
+
+If you want the container to show a custom icon in Unraid, use the JPG icon URL:
+
+```text
+https://raw.githubusercontent.com/rklinger76/mediaserver-sidekick/main/public/icon.jpg
+```
+
+The repository also contains `public/icon.svg`, but the JPG is the recommended
+choice for Unraid templates because it is more reliably displayed by Unraid.
+
+### 4. Port mapping
 
 Add a port mapping for the WebUI:
 
@@ -93,7 +105,7 @@ Only change the internal `PORT` environment variable if you also know why you
 need to change the container port. For a normal Unraid setup, leave the app's
 internal port at `3000` and only change the **Host Port**.
 
-### 4. Path mappings
+### 5. Path mappings
 
 Add these paths in the Unraid template with **Add another Path, Port, Variable,
 Label or Device** -> **Path**.
@@ -137,7 +149,7 @@ You can later choose a different export path in the WebUI, but it must be a path
 that exists inside the container. In most Unraid setups, using `/exports` is the
 simplest option.
 
-### 5. Variables
+### 6. Variables
 
 Add these entries with **Add another Path, Port, Variable, Label or Device** ->
 **Variable**.
@@ -175,7 +187,7 @@ This is the container path, not the Unraid host path. Do not put
 `/mnt/user/media/assets` here unless you also mounted that exact path into the
 container.
 
-### 6. Recommended minimal Unraid template
+### 7. Recommended minimal Unraid template
 
 Use this as a checklist:
 
@@ -186,6 +198,7 @@ Use this as a checklist:
 | Path | Exports | `/exports` | `/mnt/user/media/assets` |
 | Variable | `SIDEKICK_SECRET` | - | A long stable random secret |
 | Variable | `DEFAULT_EXPORT_DIR` | - | `/exports` |
+| Icon URL | Unraid icon | - | `https://raw.githubusercontent.com/rklinger76/mediaserver-sidekick/main/public/icon.jpg` |
 
 After applying the template, open the WebUI from the Docker tab or browse to:
 
@@ -195,7 +208,7 @@ http://tower:8088
 
 Adjust the port if you chose a different host port.
 
-### 7. First run checklist
+### 8. First run checklist
 
 1. Open the WebUI.
 2. Go to the settings view.
