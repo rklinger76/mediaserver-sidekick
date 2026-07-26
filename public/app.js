@@ -2,6 +2,7 @@ const state = {
   settings: null,
   libraries: [],
   auditLibraries: [],
+  auditPlan: null,
   exportPoll: null,
   restorePoll: null,
   backupPoll: null,
@@ -565,6 +566,8 @@ function renderRestorePlan(plan) {
 }
 
 function renderAuditPlan(plan) {
+  state.auditPlan = plan;
+  $('#audit-export-button').hidden = false;
   $('#audit-result-count').textContent = `${plan.missingCount} nur im Ordner`;
   const list = $('#audit-file-list');
   const summary = $('#audit-result-summary');
@@ -1099,6 +1102,8 @@ function renderRestoreError(message) {
 }
 
 function renderAuditError(message) {
+  state.auditPlan = null;
+  $('#audit-export-button').hidden = true;
   $('#audit-result-count').textContent = 'Fehler';
   $('#audit-result-summary').hidden = true;
   const list = $('#audit-file-list');
@@ -1107,6 +1112,69 @@ function renderAuditError(message) {
   row.className = 'empty-state';
   row.textContent = message;
   list.append(row);
+}
+
+function csvCell(value) {
+  const text = String(value ?? '');
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function auditCsvRows(plan) {
+  const rows = [
+    ['Status', 'Ordnername', 'Ordnerpfad', 'Server-Titel', 'Jahr', 'Server-Quellordner']
+  ];
+
+  for (const item of plan.matched || []) {
+    rows.push([
+      'Passend',
+      item.name,
+      item.path,
+      item.media?.title || '',
+      item.media?.year || '',
+      item.media?.sourceFolderName || item.media?.assetName || ''
+    ]);
+  }
+
+  for (const item of plan.missing || []) {
+    rows.push([
+      'Nur im Ordner',
+      item.name,
+      item.path,
+      '',
+      '',
+      ''
+    ]);
+  }
+
+  for (const item of plan.serverOnly || []) {
+    rows.push([
+      'Nur im Server',
+      '',
+      '',
+      item.title,
+      item.year || '',
+      item.sourceFolderName || item.assetName || ''
+    ]);
+  }
+
+  return rows;
+}
+
+function downloadAuditCsv() {
+  if (!state.auditPlan) return;
+  const csv = auditCsvRows(state.auditPlan)
+    .map(row => row.map(csvCell).join(','))
+    .join('\n');
+  const blob = new Blob([`\uFEFF${csv}\n`], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  const date = new Date().toISOString().slice(0, 10);
+  link.href = url;
+  link.download = `sidekick-audit-${date}.csv`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 async function auditPreview() {
@@ -1214,6 +1282,7 @@ function bindForms() {
   $('#preview-button').addEventListener('click', preview);
   $('#restore-preview-button').addEventListener('click', restorePreview);
   $('#audit-preview-button').addEventListener('click', auditPreview);
+  $('#audit-export-button').addEventListener('click', downloadAuditCsv);
 
   // Backup editor bindings
   $('#backup-add-button').addEventListener('click', () => openBackupEditor(null));

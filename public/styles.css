@@ -214,6 +214,13 @@ h2 {
   margin-bottom: 18px;
 }
 
+.panel-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 form {
   display: grid;
   gap: 16px;
@@ -416,6 +423,12 @@ button.secondary {
   color: var(--text);
   background: var(--panel-strong);
   border: 1px solid var(--line);
+}
+
+.compact-button {
+  min-height: 34px;
+  padding: 7px 10px;
+  font-size: 12px;
 }
 
 .icon-button {
@@ -705,6 +718,7 @@ button.secondary {
   .topbar,
   .panel-header,
   .actions,
+  .panel-actions,
   .path-actions {
     flex-direction: column;
     align-items: stretch;

@@ -340,7 +340,10 @@
             <div class="panel results-panel">
               <div class="panel-header">
                 <h2>Audit Ergebnis</h2>
-                <span id="audit-result-count">Noch kein Audit</span>
+                <div class="panel-actions">
+                  <button type="button" class="secondary compact-button" id="audit-export-button" hidden>CSV exportieren</button>
+                  <span id="audit-result-count">Noch kein Audit</span>
+                </div>
               </div>
               <div class="result-summary" id="audit-result-summary" hidden></div>
               <div class="file-list" id="audit-file-list">
