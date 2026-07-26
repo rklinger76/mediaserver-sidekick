@@ -44,7 +44,11 @@ function mapLibraryType(collectionType) {
 
 function sourceFolderName(item) {
   if (!item.Path) return item.ProductionYear ? `${item.Name} (${item.ProductionYear})` : item.Name;
-  if (item.Type === 'Movie') return path.basename(path.dirname(item.Path));
+  if (item.Type === 'Movie') {
+    return path.extname(item.Path)
+      ? path.basename(path.dirname(item.Path))
+      : path.basename(item.Path);
+  }
   return path.basename(item.Path);
 }
 

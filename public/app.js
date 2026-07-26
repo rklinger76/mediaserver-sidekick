@@ -565,7 +565,7 @@ function renderRestorePlan(plan) {
 }
 
 function renderAuditPlan(plan) {
-  $('#audit-result-count').textContent = `${plan.missingCount} nicht erkannt`;
+  $('#audit-result-count').textContent = `${plan.missingCount} nur im Ordner`;
   const list = $('#audit-file-list');
   const summary = $('#audit-result-summary');
   list.innerHTML = '';
@@ -574,10 +574,10 @@ function renderAuditPlan(plan) {
 
   renderMetrics(summary, [
     ['Ordner', plan.count],
-    ['Server', plan.serverCount],
-    ['Erkannt', plan.matchedCount],
-    ['Nicht erkannt', plan.missingCount],
-    ['Probleme', auditProblems(plan).length]
+    ['Server-Filme', plan.serverCount],
+    ['Passend', plan.matchedCount],
+    ['Nur im Ordner', plan.missingCount],
+    ['Nur im Server', plan.serverOnlyCount || 0]
   ]);
 
   if (!plan.folders.length) {
@@ -588,6 +588,7 @@ function renderAuditPlan(plan) {
   renderAuditExample(list, plan);
   renderAuditProblems(list, plan);
   renderMissingFolders(list, plan.missing);
+  renderServerOnlyMedia(list, plan.serverOnly || []);
 }
 
 function renderSectionTitle(container, title) {
@@ -672,7 +673,7 @@ function renderRestoreExample(container, files) {
 
 function renderAuditExample(container, plan) {
   const folder = plan.missing[0] || plan.matched[0] || plan.folders[0];
-  renderSectionTitle(container, plan.missing.length ? 'Nicht erkanntes Beispiel' : 'Audit Beispiel');
+  renderSectionTitle(container, plan.missing.length ? 'Nur-im-Ordner Beispiel' : 'Audit Beispiel');
 
   const card = document.createElement('article');
   card.className = 'media-preview';
@@ -683,7 +684,7 @@ function renderAuditExample(container, plan) {
   title.innerHTML = `<strong></strong><span></span>`;
   title.querySelector('strong').textContent = folder.name;
   title.querySelector('span').textContent = plan.missing.length
-    ? 'Kein passender Film in der gewählten Server-Bibliothek'
+    ? 'Dieser Ordner wurde keinem Film in der gewählten Server-Bibliothek zugeordnet'
     : 'Dieser Ordner wurde der Server-Bibliothek zugeordnet';
   const badge = document.createElement('span');
   badge.className = 'media-badge';
@@ -723,12 +724,12 @@ function renderAuditProblems(container, plan) {
 }
 
 function renderMissingFolders(container, folders) {
-  renderSectionTitle(container, 'Nicht erkannte Ordner');
+  renderSectionTitle(container, 'Nur im Ordner');
 
   if (!folders.length) {
     const item = document.createElement('div');
     item.className = 'problem-item clean';
-    item.textContent = 'Alle Filmordner wurden erkannt.';
+    item.textContent = 'Alle Filmordner wurden der Server-Bibliothek zugeordnet.';
     container.append(item);
     return;
   }
@@ -751,6 +752,40 @@ function renderMissingFolders(container, folders) {
     item.className = 'problem-item';
     item.textContent = `${folders.length - 100} weitere Ordner ausgeblendet.`;
     list.append(item);
+  }
+
+  container.append(list);
+}
+
+function renderServerOnlyMedia(container, items) {
+  renderSectionTitle(container, 'Nur im Server');
+
+  if (!items.length) {
+    const item = document.createElement('div');
+    item.className = 'problem-item clean';
+    item.textContent = 'Alle Server-Filme wurden einem Ordner im Audit-Pfad zugeordnet.';
+    container.append(item);
+    return;
+  }
+
+  const list = document.createElement('div');
+  list.className = 'audit-folder-list';
+  for (const item of items.slice(0, 50)) {
+    const row = document.createElement('div');
+    row.className = 'file-row';
+    const title = document.createElement('strong');
+    title.textContent = item.year ? `${item.title} (${item.year})` : item.title;
+    const detail = document.createElement('span');
+    detail.textContent = item.sourceFolderName || item.assetName || 'Kein Quellordner vom Server geliefert';
+    row.append(title, detail);
+    list.append(row);
+  }
+
+  if (items.length > 50) {
+    const extra = document.createElement('div');
+    extra.className = 'problem-item';
+    extra.textContent = `${items.length - 50} weitere Server-Filme ausgeblendet.`;
+    list.append(extra);
   }
 
   container.append(list);
@@ -852,6 +887,9 @@ function auditProblems(plan) {
   }
   if (plan.missingCount) {
     problems.push(`${plan.missingCount} Filmordner ${plan.missingCount === 1 ? 'wurde' : 'wurden'} nicht in der Server-Bibliothek gefunden.`);
+  }
+  if (plan.serverOnlyCount) {
+    problems.push(`${plan.serverOnlyCount} Server-Film${plan.serverOnlyCount === 1 ? '' : 'e'} ${plan.serverOnlyCount === 1 ? 'passt' : 'passen'} zu keinem Ordner im ausgewählten Audit-Pfad.`);
   }
   return problems;
 }

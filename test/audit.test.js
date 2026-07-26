@@ -31,6 +31,7 @@ test('finds movie folders missing from the selected media server library', async
     assert.equal(plan.serverCount, 1);
     assert.equal(plan.matchedCount, 1);
     assert.equal(plan.missingCount, 1);
+    assert.equal(plan.serverOnlyCount, 0);
     assert.equal(plan.missing[0].name, 'Missing Movie (1985)');
   } finally {
     await rm(root, { recursive: true, force: true });

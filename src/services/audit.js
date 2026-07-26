@@ -63,7 +63,8 @@ async function scanMediaFolders(sourcePath) {
 
 function buildKnownMedia(mediaItems) {
   const known = new Map();
-  for (const item of mediaItems) {
+  for (const [index, item] of mediaItems.entries()) {
+    item.auditId = `${item.type || 'media'}:${item.title || ''}:${item.year || ''}:${item.sourceFolderName || ''}:${index}`;
     for (const key of mediaKeys(item)) {
       if (!known.has(key)) known.set(key, []);
       known.get(key).push(item);
@@ -92,15 +93,27 @@ export async function createAuditPlan(request, settings) {
   const knownMedia = buildKnownMedia(mediaItems);
   const matched = [];
   const missing = [];
+  const matchedMediaIds = new Set();
 
   for (const folder of folders) {
     const media = knownMedia.get(folder.key) || [];
     if (media.length) {
       matched.push({ ...folder, media: media[0] });
+      matchedMediaIds.add(media[0].auditId);
     } else {
       missing.push(folder);
     }
   }
+
+  const serverOnly = mediaItems
+    .filter(item => !matchedMediaIds.has(item.auditId))
+    .map(item => ({
+      title: item.title,
+      year: item.year || null,
+      sourceFolderName: item.sourceFolderName || '',
+      assetName: item.assetName || ''
+    }))
+    .sort((a, b) => String(a.title).localeCompare(String(b.title), 'de'));
 
   return {
     serverType,
@@ -111,9 +124,11 @@ export async function createAuditPlan(request, settings) {
     serverCount: mediaItems.length,
     matchedCount: matched.length,
     missingCount: missing.length,
+    serverOnlyCount: serverOnly.length,
     folders,
     matched,
-    missing
+    missing,
+    serverOnly
   };
 }
 
