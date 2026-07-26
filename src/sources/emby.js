@@ -188,7 +188,7 @@ export const embyAdapter = {
       ParentId: libraryId,
       Recursive: true,
       IncludeItemTypes: 'Movie',
-      Fields: 'Path,ProductionYear,ProviderIds',
+      Fields: 'Path,ProductionYear,ProviderIds,OriginalTitle,SortName',
       SortBy: 'SortName',
       SortOrder: 'Ascending'
     });
@@ -197,6 +197,8 @@ export const embyAdapter = {
       type: 'movie',
       title: entry.Name,
       year: entry.ProductionYear || null,
+      originalTitle: entry.OriginalTitle || '',
+      sortName: entry.SortName || '',
       assetName: assetName(entry),
       sourceFolderName: sourceFolderName(entry)
     }));

@@ -45,12 +45,51 @@ function mediaCandidateKeys(item) {
   return [
     { key: normalizeName(item.sourceFolderName), score: 100 },
     { key: normalizeName(item.assetName), score: 90 },
+    { key: normalizeName(item.originalTitle), score: 88 },
+    { key: normalizeName(item.sortName), score: 86 },
+    { key: normalizeName(item.year && item.originalTitle ? `${item.originalTitle} (${item.year})` : ''), score: 84 },
     { key: normalizeName(item.year ? `${item.title} (${item.year})` : ''), score: 80 },
     { key: normalizeName(item.title), score: 60 },
     { key: normalizeLooseName(item.sourceFolderName), score: 30 },
     { key: normalizeLooseName(item.assetName), score: 25 },
+    { key: normalizeLooseName(item.originalTitle), score: 24 },
+    { key: normalizeLooseName(item.sortName), score: 22 },
     { key: normalizeLooseName(item.title), score: 20 }
   ];
+}
+
+function canonicalMediaKey(item) {
+  return [
+    normalizeName(item.sourceFolderName),
+    normalizeName(item.assetName),
+    normalizeName(item.year && item.originalTitle ? `${item.originalTitle} (${item.year})` : ''),
+    normalizeName(item.year && item.sortName ? `${item.sortName} (${item.year})` : ''),
+    normalizeName(item.year ? `${item.title} (${item.year})` : ''),
+    normalizeName(item.originalTitle),
+    normalizeName(item.sortName),
+    normalizeName(item.title)
+  ].find(Boolean) || '';
+}
+
+function dedupeMediaItems(mediaItems) {
+  const deduped = new Map();
+
+  for (const item of mediaItems) {
+    const key = canonicalMediaKey(item);
+    if (!key) continue;
+
+    const existing = deduped.get(key);
+    if (!existing) {
+      deduped.set(key, item);
+      continue;
+    }
+
+    const existingScore = mediaCandidateKeys(existing)[0]?.key ? 1 : 0;
+    const itemScore = mediaCandidateKeys(item)[0]?.key ? 1 : 0;
+    if (itemScore > existingScore) deduped.set(key, item);
+  }
+
+  return [...deduped.values()];
 }
 
 async function scanMediaFolders(sourcePath) {
@@ -111,7 +150,7 @@ export async function createAuditPlan(request, settings) {
   }
 
   const adapter = getAdapter(serverType);
-  const [mediaItems, folders] = await Promise.all([
+  const [rawMediaItems, folders] = await Promise.all([
     adapter.listMedia({
       settings: settings[serverType] || {},
       libraryId: request.libraryId || '',
@@ -119,6 +158,7 @@ export async function createAuditPlan(request, settings) {
     }),
     scanMediaFolders(request.sourcePath)
   ]);
+  const mediaItems = dedupeMediaItems(rawMediaItems);
 
   const knownMedia = buildKnownMedia(mediaItems);
   const matched = [];
@@ -140,6 +180,8 @@ export async function createAuditPlan(request, settings) {
     .map(item => ({
       title: item.title,
       year: item.year || null,
+      originalTitle: item.originalTitle || '',
+      sortName: item.sortName || '',
       sourceFolderName: item.sourceFolderName || '',
       assetName: item.assetName || ''
     }))
@@ -152,6 +194,7 @@ export async function createAuditPlan(request, settings) {
     sourcePath: path.resolve(String(request.sourcePath || '').trim()),
     count: folders.length,
     serverCount: mediaItems.length,
+    rawServerCount: rawMediaItems.length,
     matchedCount: matched.length,
     missingCount: missing.length,
     serverOnlyCount: serverOnly.length,

@@ -886,6 +886,9 @@ function restoreProblems(files) {
 
 function auditProblems(plan) {
   const problems = [];
+  if (plan.rawServerCount && plan.rawServerCount > plan.serverCount) {
+    problems.push(`${plan.rawServerCount - plan.serverCount} doppelte Server-Einträge wurden vor dem Abgleich zusammengeführt.`);
+  }
   if (!plan.serverCount) {
     problems.push('Die gewählte Server-Bibliothek enthält keine Filme oder konnte keine Filme liefern.');
   }
@@ -1145,7 +1148,7 @@ function csvCell(value) {
 
 function auditCsvRows(plan) {
   const rows = [
-    ['Status', 'Ordnername', 'Ordnerpfad', 'Server-Titel', 'Jahr', 'Server-Quellordner']
+    ['Status', 'Ordnername', 'Ordnerpfad', 'Server-Titel', 'Originaltitel', 'Jahr', 'Server-Quellordner', 'Sortname']
   ];
 
   for (const item of plan.matched || []) {
@@ -1154,8 +1157,10 @@ function auditCsvRows(plan) {
       item.name,
       item.path,
       item.media?.title || '',
+      item.media?.originalTitle || '',
       item.media?.year || '',
-      item.media?.sourceFolderName || item.media?.assetName || ''
+      item.media?.sourceFolderName || item.media?.assetName || '',
+      item.media?.sortName || ''
     ]);
   }
 
@@ -1164,6 +1169,8 @@ function auditCsvRows(plan) {
       'Nur im Ordner',
       item.name,
       item.path,
+      '',
+      '',
       '',
       '',
       ''
@@ -1176,8 +1183,10 @@ function auditCsvRows(plan) {
       '',
       '',
       item.title,
+      item.originalTitle || '',
       item.year || '',
-      item.sourceFolderName || item.assetName || ''
+      item.sourceFolderName || item.assetName || '',
+      item.sortName || ''
     ]);
   }
 
