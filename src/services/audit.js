@@ -23,20 +23,34 @@ function normalizeName(value) {
     .toLowerCase()
     .replace(/&/g, ' and ')
     .replace(/\b(the|der|die|das|ein|eine)\b/g, ' ')
-    .replace(/\b(19|20)\d{2}\b/g, ' ')
     .replace(/[^a-z0-9]+/g, ' ')
     .trim()
     .replace(/\s+/g, ' ');
 }
 
-function mediaKeys(item) {
-  const values = [
-    item.title,
-    item.year ? `${item.title} (${item.year})` : '',
-    item.sourceFolderName,
-    item.assetName
+function normalizeLooseName(value) {
+  return normalizeName(value)
+    .replace(/\b(19|20)\d{2}\b/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+function addCandidate(candidates, key, item, score) {
+  if (!key) return;
+  if (!candidates.has(key)) candidates.set(key, []);
+  candidates.get(key).push({ item, score });
+}
+
+function mediaCandidateKeys(item) {
+  return [
+    { key: normalizeName(item.sourceFolderName), score: 100 },
+    { key: normalizeName(item.assetName), score: 90 },
+    { key: normalizeName(item.year ? `${item.title} (${item.year})` : ''), score: 80 },
+    { key: normalizeName(item.title), score: 60 },
+    { key: normalizeLooseName(item.sourceFolderName), score: 30 },
+    { key: normalizeLooseName(item.assetName), score: 25 },
+    { key: normalizeLooseName(item.title), score: 20 }
   ];
-  return new Set(values.map(normalizeName).filter(Boolean));
 }
 
 async function scanMediaFolders(sourcePath) {
@@ -55,7 +69,8 @@ async function scanMediaFolders(sourcePath) {
     .map(entry => ({
       name: entry.name,
       path: path.join(root, entry.name),
-      key: normalizeName(entry.name)
+      key: normalizeName(entry.name),
+      looseKey: normalizeLooseName(entry.name)
     }))
     .filter(folder => folder.key)
     .sort((a, b) => a.name.localeCompare(b.name, 'de'));
@@ -65,12 +80,27 @@ function buildKnownMedia(mediaItems) {
   const known = new Map();
   for (const [index, item] of mediaItems.entries()) {
     item.auditId = `${item.type || 'media'}:${item.title || ''}:${item.year || ''}:${item.sourceFolderName || ''}:${index}`;
-    for (const key of mediaKeys(item)) {
-      if (!known.has(key)) known.set(key, []);
-      known.get(key).push(item);
+    for (const candidate of mediaCandidateKeys(item)) {
+      addCandidate(known, candidate.key, item, candidate.score);
     }
   }
   return known;
+}
+
+function bestMediaMatch(knownMedia, folder) {
+  const strictMatches = knownMedia.get(folder.key) || [];
+  if (strictMatches.length) {
+    return strictMatches
+      .toSorted((a, b) => b.score - a.score)[0].item;
+  }
+
+  const looseMatches = knownMedia.get(folder.looseKey) || [];
+  const uniqueLooseItems = new Map(looseMatches.map(match => [match.item.auditId, match.item]));
+  if (uniqueLooseItems.size === 1) {
+    return [...uniqueLooseItems.values()][0];
+  }
+
+  return null;
 }
 
 export async function createAuditPlan(request, settings) {
@@ -96,10 +126,10 @@ export async function createAuditPlan(request, settings) {
   const matchedMediaIds = new Set();
 
   for (const folder of folders) {
-    const media = knownMedia.get(folder.key) || [];
-    if (media.length) {
-      matched.push({ ...folder, media: media[0] });
-      matchedMediaIds.add(media[0].auditId);
+    const media = bestMediaMatch(knownMedia, folder);
+    if (media) {
+      matched.push({ ...folder, media });
+      matchedMediaIds.add(media.auditId);
     } else {
       missing.push(folder);
     }
@@ -133,5 +163,6 @@ export async function createAuditPlan(request, settings) {
 }
 
 export const auditInternals = {
-  normalizeName
+  normalizeName,
+  normalizeLooseName
 };

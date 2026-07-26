@@ -6,8 +6,10 @@ import assert from 'node:assert/strict';
 import { createAuditPlan, auditInternals } from '../src/services/audit.js';
 
 test('normalizes movie folder names for audit matching', () => {
-  assert.equal(auditInternals.normalizeName('Alien (1979)'), 'alien');
-  assert.equal(auditInternals.normalizeName('The Matrix - 1999'), 'matrix');
+  assert.equal(auditInternals.normalizeName('Alien (1979)'), 'alien 1979');
+  assert.equal(auditInternals.normalizeName('The Matrix - 1999'), 'matrix 1999');
+  assert.equal(auditInternals.normalizeLooseName('Alien (1979)'), 'alien');
+  assert.equal(auditInternals.normalizeLooseName('The Matrix - 1999'), 'matrix');
 });
 
 test('finds movie folders missing from the selected media server library', async () => {
