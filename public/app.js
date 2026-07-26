@@ -577,7 +577,7 @@ function renderAuditPlan(plan) {
     ['Server-Filme', plan.serverCount],
     ['Passend', plan.matchedCount],
     ['Nur im Ordner', plan.missingCount],
-    ['Trefferquote', auditMatchRate(plan)]
+    ['Nur im Server', plan.serverOnlyCount || 0]
   ]);
 
   if (!plan.folders.length) {
@@ -588,6 +588,7 @@ function renderAuditPlan(plan) {
   renderAuditExample(list, plan);
   renderAuditProblems(list, plan);
   renderMissingFolders(list, plan.missing);
+  renderServerOnlyMedia(list, plan.serverOnly || []);
 }
 
 function renderSectionTitle(container, title) {
@@ -756,6 +757,40 @@ function renderMissingFolders(container, folders) {
   container.append(list);
 }
 
+function renderServerOnlyMedia(container, items) {
+  renderSectionTitle(container, 'Nur im Server');
+
+  if (!items.length) {
+    const item = document.createElement('div');
+    item.className = 'problem-item clean';
+    item.textContent = 'Alle Server-Filme wurden einem Ordner im Audit-Pfad zugeordnet.';
+    container.append(item);
+    return;
+  }
+
+  const list = document.createElement('div');
+  list.className = 'audit-folder-list';
+  for (const item of items.slice(0, 100)) {
+    const row = document.createElement('div');
+    row.className = 'file-row';
+    const title = document.createElement('strong');
+    title.textContent = item.year ? `${item.title} (${item.year})` : item.title;
+    const detail = document.createElement('span');
+    detail.textContent = item.sourceFolderName || item.assetName || 'Kein Quellordner vom Server geliefert';
+    row.append(title, detail);
+    list.append(row);
+  }
+
+  if (items.length > 100) {
+    const extra = document.createElement('div');
+    extra.className = 'problem-item';
+    extra.textContent = `${items.length - 100} weitere Server-Filme ausgeblendet.`;
+    list.append(extra);
+  }
+
+  container.append(list);
+}
+
 function renderRestoreProblems(container, files) {
   renderSectionTitle(container, 'Erkannte Probleme');
 
@@ -853,12 +888,15 @@ function auditProblems(plan) {
   if (plan.missingCount) {
     problems.push(`${plan.missingCount} Filmordner ${plan.missingCount === 1 ? 'wurde' : 'wurden'} nicht in der Server-Bibliothek gefunden.`);
   }
+  if (plan.serverOnlyCount) {
+    problems.push(`${plan.serverOnlyCount} Server-Film${plan.serverOnlyCount === 1 ? '' : 'e'} ${plan.serverOnlyCount === 1 ? 'hat' : 'haben'} keinen passenden Ordner im ausgewählten Audit-Pfad.`);
+  }
   return problems;
 }
 
 function auditMatchRate(plan) {
   if (!plan.count) return '0%';
-  return `${Math.round((plan.matchedCount / plan.count) * 100)}%`;
+  return `${((plan.matchedCount / plan.count) * 100).toFixed(1).replace('.0', '')}%`;
 }
 
 function restoreActionLabel(action) {
