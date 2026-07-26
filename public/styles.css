@@ -403,6 +403,35 @@ progress::-moz-progress-bar {
   background: var(--accent);
 }
 
+.progress-card.indeterminate progress {
+  position: relative;
+  color: transparent;
+}
+
+.progress-card.indeterminate progress::-webkit-progress-value {
+  background:
+    linear-gradient(90deg, transparent, rgba(255, 255, 255, .36), transparent),
+    var(--accent);
+  animation: progress-sweep 1.2s linear infinite;
+}
+
+.progress-card.indeterminate progress::-moz-progress-bar {
+  background:
+    linear-gradient(90deg, transparent, rgba(255, 255, 255, .36), transparent),
+    var(--accent);
+  animation: progress-sweep 1.2s linear infinite;
+}
+
+@keyframes progress-sweep {
+  from {
+    background-position: -180px 0, 0 0;
+  }
+
+  to {
+    background-position: 180px 0, 0 0;
+  }
+}
+
 .actions {
   display: flex;
   gap: 10px;
@@ -417,6 +446,11 @@ button {
   background: var(--accent);
   font-weight: 760;
   cursor: pointer;
+}
+
+button:disabled {
+  cursor: progress;
+  opacity: .62;
 }
 
 button.secondary {

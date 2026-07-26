@@ -567,6 +567,7 @@ function renderRestorePlan(plan) {
 
 function renderAuditPlan(plan) {
   state.auditPlan = plan;
+  setAuditBusy(false);
   $('#audit-export-button').hidden = false;
   $('#audit-result-count').textContent = `${plan.missingCount} nur im Ordner`;
   const list = $('#audit-file-list');
@@ -1103,6 +1104,7 @@ function renderRestoreError(message) {
 
 function renderAuditError(message) {
   state.auditPlan = null;
+  setAuditBusy(false);
   $('#audit-export-button').hidden = true;
   $('#audit-result-count').textContent = 'Fehler';
   $('#audit-result-summary').hidden = true;
@@ -1112,6 +1114,28 @@ function renderAuditError(message) {
   row.className = 'empty-state';
   row.textContent = message;
   list.append(row);
+}
+
+function setAuditBusy(isBusy) {
+  const progress = $('#audit-progress');
+  const button = $('#audit-preview-button');
+  progress.hidden = !isBusy;
+  button.disabled = isBusy;
+  button.textContent = isBusy ? 'Audit läuft' : 'Audit starten';
+}
+
+function renderAuditLoading() {
+  state.auditPlan = null;
+  $('#audit-export-button').hidden = true;
+  $('#audit-result-count').textContent = 'Audit läuft';
+  $('#audit-result-summary').hidden = true;
+  const list = $('#audit-file-list');
+  list.innerHTML = '';
+  const row = document.createElement('div');
+  row.className = 'empty-state compact';
+  row.textContent = 'Server-Bibliothek und Medienordner werden verglichen.';
+  list.append(row);
+  setAuditBusy(true);
 }
 
 function csvCell(value) {
@@ -1178,6 +1202,7 @@ function downloadAuditCsv() {
 }
 
 async function auditPreview() {
+  renderAuditLoading();
   try {
     const plan = await api('/api/audit/preview', {
       method: 'POST',
