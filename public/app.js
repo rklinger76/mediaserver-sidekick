@@ -1,6 +1,7 @@
 const state = {
   settings: null,
   libraries: [],
+  auditLibraries: [],
   exportPoll: null,
   restorePoll: null,
   backupPoll: null,
@@ -23,6 +24,10 @@ const viewMeta = {
   backup: {
     eyebrow: 'Backup-Jobs verwalten',
     title: 'Mehrere Backup-Jobs konfigurieren'
+  },
+  audit: {
+    eyebrow: 'Library Audit',
+    title: 'Nicht erkannte Filmordner finden'
   },
   settings: {
     eyebrow: 'Docker & Unraid',
@@ -417,6 +422,17 @@ function renderMetric(label, value) {
   return `<div class="summary-item"><strong>${value}</strong><span>${label}</span></div>`;
 }
 
+function auditPayload() {
+  const data = formToObject($('#audit-form')).audit || {};
+  const selectedLibrary = $('#audit-library-select').selectedOptions[0];
+  return {
+    serverType: data.serverType,
+    libraryId: data.libraryId,
+    libraryType: selectedLibrary?.dataset.type || 'movie',
+    sourcePath: data.sourcePath
+  };
+}
+
 function typeLabel(type) {
   if (type === 'movie') return 'Filme';
   if (type === 'show') return 'Serien';
@@ -429,6 +445,12 @@ function updateLibraryType() {
   $('#library-type').textContent = typeLabel(type);
   $('#season-poster-row').hidden = type !== 'show';
   $('#kometa-asset-name-row').hidden = !['movie', 'show'].includes(type);
+}
+
+function updateAuditLibraryType() {
+  const selected = $('#audit-library-select').selectedOptions[0];
+  const type = selected?.dataset.type;
+  $('#audit-library-type').textContent = typeLabel(type);
 }
 
 async function loadLibraries(serverType = $('[name="serverType"]').value) {
@@ -463,6 +485,38 @@ async function loadLibraries(serverType = $('[name="serverType"]').value) {
 }
 
 /* ── Backup UI helpers (replaced by multi-job management above) ── */
+
+async function loadAuditLibraries(serverType = $('[name="audit.serverType"]').value) {
+  const select = $('#audit-library-select');
+  select.innerHTML = '<option value="">Lade Bibliotheken</option>';
+  $('#audit-library-type').textContent = '-';
+
+  try {
+    state.auditLibraries = await api(`/api/libraries?serverType=${encodeURIComponent(serverType)}`);
+  } catch (error) {
+    state.auditLibraries = [];
+    select.innerHTML = `<option value="">${error.message}</option>`;
+    updateAuditLibraryType();
+    return;
+  }
+
+  const movieLibraries = state.auditLibraries.filter(library => library.type === 'movie');
+  if (!movieLibraries.length) {
+    select.innerHTML = '<option value="">Keine Film-Bibliothek gefunden</option>';
+    updateAuditLibraryType();
+    return;
+  }
+
+  select.innerHTML = '';
+  for (const library of movieLibraries) {
+    const option = document.createElement('option');
+    option.value = library.id;
+    option.dataset.type = library.type;
+    option.textContent = `${library.name} (${typeLabel(library.type)})`;
+    select.append(option);
+  }
+  updateAuditLibraryType();
+}
 
 function renderFiles(plan) {
   $('#result-count').textContent = `${plan.count} Dateien`;
@@ -508,6 +562,32 @@ function renderRestorePlan(plan) {
   ]);
   renderRestoreExample(list, plan.files);
   renderRestoreProblems(list, plan.files);
+}
+
+function renderAuditPlan(plan) {
+  $('#audit-result-count').textContent = `${plan.missingCount} nicht erkannt`;
+  const list = $('#audit-file-list');
+  const summary = $('#audit-result-summary');
+  list.innerHTML = '';
+  summary.innerHTML = '';
+  summary.hidden = false;
+
+  renderMetrics(summary, [
+    ['Ordner', plan.count],
+    ['Server', plan.serverCount],
+    ['Erkannt', plan.matchedCount],
+    ['Nicht erkannt', plan.missingCount],
+    ['Probleme', auditProblems(plan).length]
+  ]);
+
+  if (!plan.folders.length) {
+    list.innerHTML = '<div class="empty-state">Keine Filmordner im Medienordner gefunden.</div>';
+    return;
+  }
+
+  renderAuditExample(list, plan);
+  renderAuditProblems(list, plan);
+  renderMissingFolders(list, plan.missing);
 }
 
 function renderSectionTitle(container, title) {
@@ -588,6 +668,92 @@ function renderRestoreExample(container, files) {
 
   card.append(header, source, target);
   container.append(card);
+}
+
+function renderAuditExample(container, plan) {
+  const folder = plan.missing[0] || plan.matched[0] || plan.folders[0];
+  renderSectionTitle(container, plan.missing.length ? 'Nicht erkanntes Beispiel' : 'Audit Beispiel');
+
+  const card = document.createElement('article');
+  card.className = 'media-preview';
+
+  const header = document.createElement('div');
+  header.className = 'media-preview-header';
+  const title = document.createElement('div');
+  title.innerHTML = `<strong></strong><span></span>`;
+  title.querySelector('strong').textContent = folder.name;
+  title.querySelector('span').textContent = plan.missing.length
+    ? 'Kein passender Film in der gewählten Server-Bibliothek'
+    : 'Dieser Ordner wurde der Server-Bibliothek zugeordnet';
+  const badge = document.createElement('span');
+  badge.className = 'media-badge';
+  badge.textContent = plan.missing.length ? 'Prüfen' : 'Erkannt';
+  header.append(title, badge);
+
+  const folderLine = document.createElement('div');
+  folderLine.className = 'folder-line';
+  folderLine.textContent = folder.path;
+
+  card.append(header, folderLine);
+  container.append(card);
+}
+
+function renderAuditProblems(container, plan) {
+  renderSectionTitle(container, 'Erkannte Probleme');
+
+  const problems = auditProblems(plan);
+  const panel = document.createElement('div');
+  panel.className = 'problem-list';
+
+  if (!problems.length) {
+    const item = document.createElement('div');
+    item.className = 'problem-item clean';
+    item.textContent = 'Keine Probleme erkannt.';
+    panel.append(item);
+  } else {
+    for (const problem of problems) {
+      const item = document.createElement('div');
+      item.className = 'problem-item';
+      item.textContent = problem;
+      panel.append(item);
+    }
+  }
+
+  container.append(panel);
+}
+
+function renderMissingFolders(container, folders) {
+  renderSectionTitle(container, 'Nicht erkannte Ordner');
+
+  if (!folders.length) {
+    const item = document.createElement('div');
+    item.className = 'problem-item clean';
+    item.textContent = 'Alle Filmordner wurden erkannt.';
+    container.append(item);
+    return;
+  }
+
+  const list = document.createElement('div');
+  list.className = 'audit-folder-list';
+  for (const folder of folders.slice(0, 100)) {
+    const row = document.createElement('div');
+    row.className = 'file-row';
+    const title = document.createElement('strong');
+    title.textContent = folder.name;
+    const detail = document.createElement('span');
+    detail.textContent = folder.path;
+    row.append(title, detail);
+    list.append(row);
+  }
+
+  if (folders.length > 100) {
+    const item = document.createElement('div');
+    item.className = 'problem-item';
+    item.textContent = `${folders.length - 100} weitere Ordner ausgeblendet.`;
+    list.append(item);
+  }
+
+  container.append(list);
 }
 
 function renderRestoreProblems(container, files) {
@@ -676,6 +842,17 @@ function restoreProblems(files) {
       : `${unknown} Dateien konnten nicht als Assets erkannt werden.`);
   }
 
+  return problems;
+}
+
+function auditProblems(plan) {
+  const problems = [];
+  if (!plan.serverCount) {
+    problems.push('Die gewählte Server-Bibliothek enthält keine Filme oder konnte keine Filme liefern.');
+  }
+  if (plan.missingCount) {
+    problems.push(`${plan.missingCount} Filmordner ${plan.missingCount === 1 ? 'wurde' : 'wurden'} nicht in der Server-Bibliothek gefunden.`);
+  }
   return problems;
 }
 
@@ -878,6 +1055,29 @@ function renderRestoreError(message) {
   list.append(row);
 }
 
+function renderAuditError(message) {
+  $('#audit-result-count').textContent = 'Fehler';
+  $('#audit-result-summary').hidden = true;
+  const list = $('#audit-file-list');
+  list.innerHTML = '';
+  const row = document.createElement('div');
+  row.className = 'empty-state';
+  row.textContent = message;
+  list.append(row);
+}
+
+async function auditPreview() {
+  try {
+    const plan = await api('/api/audit/preview', {
+      method: 'POST',
+      body: auditPayload()
+    });
+    renderAuditPlan(plan);
+  } catch (error) {
+    renderAuditError(error.message);
+  }
+}
+
 function pathInput(name) {
   return $(`[name="${CSS.escape(name)}"]`);
 }
@@ -963,9 +1163,14 @@ function bindForms() {
     loadLibraries(event.currentTarget.value);
   });
   $('#library-select').addEventListener('change', updateLibraryType);
+  $('[name="audit.serverType"]').addEventListener('change', event => {
+    loadAuditLibraries(event.currentTarget.value);
+  });
+  $('#audit-library-select').addEventListener('change', updateAuditLibraryType);
 
   $('#preview-button').addEventListener('click', preview);
   $('#restore-preview-button').addEventListener('click', restorePreview);
+  $('#audit-preview-button').addEventListener('click', auditPreview);
 
   // Backup editor bindings
   $('#backup-add-button').addEventListener('click', () => openBackupEditor(null));
@@ -1048,6 +1253,7 @@ async function boot() {
   $('#health').textContent = health.ok ? 'Bereit' : 'Nicht bereit';
   fillSettings(await api('/api/settings'));
   await loadLibraries();
+  await loadAuditLibraries();
 }
 
 boot().catch(error => {

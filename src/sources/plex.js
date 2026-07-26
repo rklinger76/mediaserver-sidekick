@@ -85,6 +85,12 @@ function artworkFromItem(settings, item) {
   return artwork;
 }
 
+function mediaYear(item) {
+  if (item.year) return Number(item.year);
+  if (item.originallyAvailableAt) return Number(String(item.originallyAvailableAt).slice(0, 4));
+  return null;
+}
+
 export const plexAdapter = {
   async listLibraries(settings) {
     if (!settings?.url || !settings?.token) {
@@ -183,5 +189,44 @@ export const plexAdapter = {
 
     return items;
   },
+
+  async listMedia({ settings, libraryId, libraryType }) {
+    if (!settings?.url || !settings?.token) {
+      const demoItems = [
+        {
+          type: 'movie',
+          title: 'Example Movie',
+          year: 2024,
+          assetName: 'Example Movie (2024)',
+          sourceFolderName: 'Example Movie (2024)'
+        }
+      ];
+      if (libraryId === 'demo-shows' || libraryType === 'show') return [];
+      return demoItems;
+    }
+
+    const sections = await plexJson(settings, '/library/sections');
+    const directories = (sections.MediaContainer?.Directory || [])
+      .filter(section => section.type === 'movie')
+      .filter(section => !libraryId || String(section.key) === String(libraryId));
+    const items = [];
+
+    for (const section of directories) {
+      const metadata = await plexJson(settings, `/library/sections/${section.key}/all`);
+      for (const entry of metadata.MediaContainer?.Metadata || []) {
+        if (entry.type !== 'movie') continue;
+        items.push({
+          type: 'movie',
+          title: entry.title,
+          year: mediaYear(entry),
+          assetName: assetNameFor(entry),
+          sourceFolderName: assetNameFor(entry)
+        });
+      }
+    }
+
+    return items;
+  },
+
   plexArtworkUrl
 };

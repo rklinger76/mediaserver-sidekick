@@ -30,6 +30,7 @@
           <button class="nav-item active" data-view="export">Export</button>
           <button class="nav-item" data-view="backup">Backup</button>
           <button class="nav-item" data-view="restore">Restore</button>
+          <button class="nav-item" data-view="audit">Audit</button>
           <button class="nav-item" data-view="settings">Settings</button>
         </nav>
       </aside>
@@ -289,6 +290,61 @@
               <div class="result-summary" id="restore-result-summary" hidden></div>
               <div class="file-list" id="restore-file-list">
                 <div class="empty-state">Wähle Backup- und Zielverzeichnis und erstelle eine Vorschau.</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="view-audit">
+          <div class="work-grid">
+            <form class="panel" id="audit-form">
+              <div class="panel-header">
+                <h2>Library Audit</h2>
+                <span>Nicht erkannte Filmordner finden</span>
+              </div>
+
+              <label>
+                Medienserver
+                <select name="audit.serverType">
+                  <option value="plex">Plex</option>
+                  <option value="emby">Emby</option>
+                  <option value="jellyfin">Jellyfin</option>
+                </select>
+              </label>
+
+              <label>
+                Bibliothek
+                <select name="audit.libraryId" id="audit-library-select">
+                  <option value="">Lade Bibliotheken</option>
+                </select>
+              </label>
+
+              <div class="library-meta">
+                <span>Erkannt als</span>
+                <strong id="audit-library-type">-</strong>
+              </div>
+
+              <label>
+                Medienordner im Sidekick-Container
+                <span class="path-field">
+                  <input name="audit.sourcePath" placeholder="/media/movies">
+                  <button type="button" class="secondary browse-button" data-path-target="audit.sourcePath">Auswählen</button>
+                </span>
+              </label>
+
+              <div class="actions">
+                <button type="button" class="secondary" id="audit-preview-button">Audit starten</button>
+              </div>
+            </form>
+
+            <div class="panel results-panel">
+              <div class="panel-header">
+                <h2>Audit Ergebnis</h2>
+                <span id="audit-result-count">Noch kein Audit</span>
+              </div>
+              <div class="result-summary" id="audit-result-summary" hidden></div>
+              <div class="file-list" id="audit-file-list">
+                <div class="empty-state">Wähle Bibliothek und Medienordner, dann starte den Audit.</div>
               </div>
             </div>
           </div>

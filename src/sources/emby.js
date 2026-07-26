@@ -161,5 +161,40 @@ export const embyAdapter = {
     }
 
     return items;
+  },
+
+  async listMedia({ settings, libraryId, libraryType }) {
+    if (!settings?.url || !settings?.apiKey) {
+      const demoItems = [
+        {
+          type: 'movie',
+          title: 'Emby Example Movie',
+          year: 2024,
+          assetName: 'Emby Example Movie (2024)',
+          sourceFolderName: 'Emby Example Movie (2024)'
+        }
+      ];
+      if (libraryId === 'demo-shows' || libraryType === 'show') return [];
+      return demoItems;
+    }
+
+    if (libraryType === 'show') return [];
+
+    const payload = await embyJson(settings, '/Items', {
+      ParentId: libraryId,
+      Recursive: true,
+      IncludeItemTypes: 'Movie',
+      Fields: 'Path,ProductionYear,ProviderIds',
+      SortBy: 'SortName',
+      SortOrder: 'Ascending'
+    });
+
+    return (payload.Items || []).map(entry => ({
+      type: 'movie',
+      title: entry.Name,
+      year: entry.ProductionYear || null,
+      assetName: assetName(entry),
+      sourceFolderName: sourceFolderName(entry)
+    }));
   }
 };

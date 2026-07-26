@@ -4,6 +4,7 @@ import { createReadStream } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { settingsStore } from './settings/store.js';
+import { createAuditPlan } from './services/audit.js';
 import { createExportPlan, getExportJob, listLibraries, startExportJob } from './services/exporter.js';
 import { createRestorePlan, getRestoreJob, startRestoreJob } from './services/restore.js';
 import { getBackupJob, normalizeBackupConfig, startBackupJob, startBackupSchedules } from './services/backup.js';
@@ -18,7 +19,10 @@ const mimeTypes = new Map([
   ['.css', 'text/css; charset=utf-8'],
   ['.js', 'text/javascript; charset=utf-8'],
   ['.json', 'application/json; charset=utf-8'],
-  ['.svg', 'image/svg+xml']
+  ['.svg', 'image/svg+xml'],
+  ['.jpg', 'image/jpeg'],
+  ['.jpeg', 'image/jpeg'],
+  ['.png', 'image/png']
 ]);
 
 async function browseDirectory(requestedPath) {
@@ -137,6 +141,13 @@ async function handleApi(req, res) {
     const body = await readBody(req);
     const settings = await settingsStore.loadPrivate();
     sendJson(res, 200, await createExportPlan(body, settings));
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/audit/preview') {
+    const body = await readBody(req);
+    const settings = await settingsStore.loadPrivate();
+    sendJson(res, 200, await createAuditPlan(body, settings));
     return;
   }
 

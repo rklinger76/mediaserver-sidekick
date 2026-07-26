@@ -117,6 +117,7 @@ Label or Device** -> **Path**.
 | `/app/data` | `/mnt/user/appdata/mediaserver-sidekick` | Stores encrypted settings, including saved Plex/Emby/Jellyfin credentials and backup schedules. |
 | `/exports` | `/mnt/user/media/assets` | Default folder where exported artwork is written and where restore jobs can target files. |
 | `/backups` | `/mnt/user/backups/mediaserver-sidekick` | Recommended target for automated artwork backups. Backups are normal timestamped folders, not ZIP archives. |
+| `/media/movies` | `/mnt/user/movies` | Optional movie library path for Library Audit |
 
 #### `/app/data` settings folder
 
@@ -267,6 +268,22 @@ Adjust the port if you chose a different host port.
 9. Preview the export plan.
 10. Run the export when the plan looks correct.
 11. Optional: open **Backup**, configure schedule/retention, set Backup-Verzeichnis to `/backups`, and save or run a backup now.
+
+## Library Audit
+
+Library Audit compares a selected Plex, Emby, or Jellyfin movie library with a
+movie folder that Sidekick can scan. It helps find folders that exist on disk
+but were not recognized by the media server.
+
+The media folder must be mounted into the Sidekick container. Do not rely on the
+path used by Plex, Emby, or Jellyfin, because each Docker container can have
+different path mappings. In Unraid, add a path such as:
+
+| Container Path | Host Path |
+| --- | --- |
+| `/media/movies` | `/mnt/user/movies` |
+
+Then enter or select `/media/movies` in the Audit view.
 
 ## Volumes and Environment
 
